@@ -65,7 +65,17 @@ st.download_button(texts[lang]["download"], sample, file_name="example.txt")
 # --- Cargar archivo ---
 uploaded_file = st.file_uploader(texts[lang]["upload"], type=["txt","csv"])
 if uploaded_file:
-    df = pd.read_csv(uploaded_file, sep="\t")
+    try:
+        df = pd.read_csv(uploaded_file, sep="\t")
+    except Exception:
+        df = pd.read_csv(uploaded_file)  # fallback si no es tabulado
+
+    st.write("Columnas detectadas:", df.columns.tolist())
+
+    if "Run_Date" in df.columns:
+        df["Run_Date"] = pd.to_datetime(df["Run_Date"], errors="coerce")
+    if "Stop_Date" in df.columns:
+        df["Stop_Date"] = pd.to_datetime(df["Stop_Date"], errors="coerce")
 
     # --- Conversión robusta de fechas ---
     df["Run_Date"] = pd.to_datetime(df["Run_Date"], infer_datetime_format=True, errors="coerce")

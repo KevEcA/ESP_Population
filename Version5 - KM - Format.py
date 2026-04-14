@@ -47,6 +47,11 @@ texts = {
 # --- Título ---
 st.title(texts[lang]["title"])
 
+st.markdown(
+    "<small><i>Developed by Kevin Andagoya - 2026</i></small>",
+    unsafe_allow_html=True
+)
+
 # --- Ejemplo descargable ---
 sample = """Well_ID\tRun_Date\tStop_Date\tState\tCause
 ACA-025 - 12\t15-Sep-23\t\t0\t

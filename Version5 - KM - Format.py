@@ -77,9 +77,10 @@ if uploaded_file:
     if "Stop_Date" in df.columns:
         df["Stop_Date"] = pd.to_datetime(df["Stop_Date"], errors="coerce")
 
-    # --- Conversión robusta de fechas ---
-    df["Run_Date"] = pd.to_datetime(df["Run_Date"], infer_datetime_format=True, errors="coerce")
-    df["Stop_Date"] = pd.to_datetime(df["Stop_Date"], infer_datetime_format=True, errors="coerce")
+    # Conversión robusta de fechas
+    for col in ["Run_Date", "Stop_Date"]:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=True)
 
     def fix_year(date):
         if pd.notna(date) and date.year < 1970:

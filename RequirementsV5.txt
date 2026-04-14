@@ -2,3 +2,7 @@ streamlit
 pandas
 numpy
 plotly
+matplotlib
+scipy
+lifelines
+openpyxl

@@ -61,9 +61,7 @@ st.markdown(
     '</p>',
     unsafe_allow_html=True
 )
-if st.button("HELP?"):
-    with open("tutorial.html", "r", encoding="utf-8") as f:
-        st.markdown(f.read(), unsafe_allow_html=True)
+
 
 
 # --- Ejemplo descargable ---

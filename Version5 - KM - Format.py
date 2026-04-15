@@ -56,39 +56,26 @@ st.markdown(
 # --- Ícono de ayuda (abre tutorial.html en nueva pestaña) ---
 st.markdown(
     """
-    <style>
-    .help-button {
-        position: fixed;
-        top: 15px;
-        left: 15px;
-        background-color: #007BFF; /* azul */
-        color: white;
-        border: none;
-        border-radius: 50%;
-        width: 36px;
-        height: 36px;
-        text-align: center;
-        line-height: 36px;
-        font-size: 22px;
-        font-weight: bold;
-        cursor: pointer;
-        z-index: 9999; /* asegura que quede encima */
-        box-shadow: 0px 2px 6px rgba(0,0,0,0.3);
-    }
-    .help-button:hover::after {
-        content: "help";
-        position: absolute;
-        top: 40px;
-        left: 0;
-        background: #333;
-        color: #fff;
-        padding: 3px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        white-space: nowrap;
-    }
-    </style>
-    <a href="tutorial.html" target="_blank" class="help-button">?</a>
+    <a href="tutorial.html" target="_blank" title="help"
+       style="
+          position:fixed;
+          top:15px;
+          left:15px;
+          background-color:#007BFF;
+          color:white;
+          border-radius:50%;
+          width:36px;
+          height:36px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          text-decoration:none;
+          font-weight:bold;
+          font-size:22px;
+          box-shadow:0px 2px 6px rgba(0,0,0,0.3);
+          z-index:9999;">
+        ?
+    </a>
     """,
     unsafe_allow_html=True
 )

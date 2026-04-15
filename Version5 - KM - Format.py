@@ -53,30 +53,11 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- Ícono de ayuda (abre tutorial.html en nueva pestaña) ---
+# --- Enlace de ayuda debajo del título ---
 st.markdown(
-    """
-    <a href="tutorial.html" target="_blank" title="help"
-       style="
-          position:fixed;
-          top:15px;
-          left:15px;
-          background-color:#007BFF;
-          color:white;
-          border-radius:50%;
-          width:36px;
-          height:36px;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          text-decoration:none;
-          font-weight:bold;
-          font-size:22px;
-          box-shadow:0px 2px 6px rgba(0,0,0,0.3);
-          z-index:9999;">
-        ?
-    </a>
-    """,
+    '<p style="font-size:12px;">'
+    '<a href="tutorial.html" target="_blank" style="color:#007BFF; text-decoration:none;">HELP?</a>'
+    '</p>',
     unsafe_allow_html=True
 )
 

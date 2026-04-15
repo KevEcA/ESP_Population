@@ -149,8 +149,8 @@ if uploaded_file:
             st.plotly_chart(fig_box_viva, use_container_width=True)
 
     # --- Validación de estados ---
-    print("Conteo de estados:", df["State"].value_counts(dropna=False))
-    print("Ejemplo de 2026:", df[df["Run_Date"].dt.year == 2026][["Well_ID","Run_Date","Stop_Date","State"]])
+    st.write("Conteo de estados:", df["State"].value_counts(dropna=False))
+    st.write("Ejemplo de 2026:", df[df["Run_Date"].dt.year == 2026][["Well_ID","Run_Date","Stop_Date","State"]])
 
     
     # --- Gráficas población fallada/censurada ---

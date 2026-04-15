@@ -57,7 +57,7 @@ st.markdown(
 # --- Enlace de ayuda debajo del título ---
 st.markdown(
     '<p style="font-size:12px;">'
-    '<a href="tutorial.html" target="_blank" style="color:#007BFF; text-decoration:none;">HELP?</a>'
+    '<a href="https://tuusuario.github.io/ESP_Population/tutorial.html" target="_blank" style="color:#007BFF; text-decoration:none;">HELP?</a>'
     '</p>',
     unsafe_allow_html=True
 )

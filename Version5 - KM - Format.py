@@ -65,14 +65,15 @@ st.markdown(
         color: white;
         border: none;
         border-radius: 50%;
-        width: 32px;
-        height: 32px;
+        width: 36px;
+        height: 36px;
         text-align: center;
-        line-height: 32px;
-        font-size: 20px;
+        line-height: 36px;
+        font-size: 22px;
         font-weight: bold;
         cursor: pointer;
         z-index: 9999; /* asegura que quede encima */
+        box-shadow: 0px 2px 6px rgba(0,0,0,0.3);
     }
     .help-button:hover::after {
         content: "help";
@@ -91,6 +92,7 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 
 
 # --- Ejemplo descargable ---

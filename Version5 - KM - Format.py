@@ -59,23 +59,25 @@ st.markdown(
     <style>
     .help-button {
         position: fixed;
-        top: 10px;
-        left: 10px;
+        top: 15px;
+        left: 15px;
         background-color: #007BFF; /* azul */
         color: white;
         border: none;
         border-radius: 50%;
-        width: 30px;
-        height: 30px;
+        width: 32px;
+        height: 32px;
         text-align: center;
-        line-height: 30px;
-        font-size: 18px;
+        line-height: 32px;
+        font-size: 20px;
+        font-weight: bold;
         cursor: pointer;
+        z-index: 9999; /* asegura que quede encima */
     }
     .help-button:hover::after {
         content: "help";
         position: absolute;
-        top: 35px;
+        top: 40px;
         left: 0;
         background: #333;
         color: #fff;

@@ -56,14 +56,40 @@ st.markdown(
 # --- Ícono de ayuda (abre tutorial.html en nueva pestaña) ---
 st.markdown(
     """
-    <div style="position: absolute; top: 10px; left: 10px;">
-        <a href="tutorial.html" target="_blank" style="text-decoration:none; font-size:20px;">
-            ❓
-        </a>
-    </div>
+    <style>
+    .help-button {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        background-color: #007BFF; /* azul */
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        text-align: center;
+        line-height: 30px;
+        font-size: 18px;
+        cursor: pointer;
+    }
+    .help-button:hover::after {
+        content: "help";
+        position: absolute;
+        top: 35px;
+        left: 0;
+        background: #333;
+        color: #fff;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        white-space: nowrap;
+    }
+    </style>
+    <a href="tutorial.html" target="_blank" class="help-button">?</a>
     """,
     unsafe_allow_html=True
 )
+
 
 # --- Ejemplo descargable ---
 sample = """Well_ID\tRun_Date\tStop_Date\tState\tCause

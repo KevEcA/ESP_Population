@@ -148,6 +148,11 @@ if uploaded_file:
             fig_box_viva = px.box(viva_final, x="RL_segment", y="RL_at_year", color="Year")
             st.plotly_chart(fig_box_viva, use_container_width=True)
 
+    # --- Validación de estados ---
+    print("Conteo de estados:", df["State"].value_counts(dropna=False))
+    print("Ejemplo de 2026:", df[df["Run_Date"].dt.year == 2026][["Well_ID","Run_Date","Stop_Date","State"]])
+
+    
     # --- Gráficas población fallada/censurada ---
     results_fail = []
     fail_all = []
@@ -179,8 +184,6 @@ if uploaded_file:
             fig_box_fail = px.box(fail_final, x="RL_segment", y="RL_at_year", color="Year")
             st.plotly_chart(fig_box_fail, use_container_width=True)
 
-print("Conteo de estados:", df["State"].value_counts(dropna=False))
-print("Ejemplo de 2026:", df[df["Run_Date"].dt.year == 2026][["Well_ID","Run_Date","Stop_Date","State"]])
         
         # --- Kaplan–Meier ---
         st.subheader(texts[lang]["km_header"])

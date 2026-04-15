@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 from lifelines import KaplanMeierFitter
 from datetime import datetime
 
+
 # --- Selector de idioma (dropdown sutil) ---
 lang = st.selectbox("Idioma / Language", ["ES", "EN"], index=0)
 
@@ -60,7 +61,9 @@ st.markdown(
     '</p>',
     unsafe_allow_html=True
 )
-
+if st.button("HELP?"):
+    with open("tutorial.html", "r", encoding="utf-8") as f:
+        st.markdown(f.read(), unsafe_allow_html=True)
 
 
 # --- Ejemplo descargable ---

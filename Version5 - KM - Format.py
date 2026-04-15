@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 from lifelines import KaplanMeierFitter
 from datetime import datetime
 
-# --- Selector de idioma (dropdown) ---
+# --- Selector de idioma (dropdown sutil) ---
 lang = st.selectbox("Idioma / Language", ["ES", "EN"], index=0)
 
 # --- Diccionario de traducciones ---
@@ -44,11 +44,24 @@ texts = {
     }
 }
 
-# --- Título ---
+# --- Título principal ---
 st.title(texts[lang]["title"])
 
+# --- Firma en letras pequeñas ---
 st.markdown(
     "<small><i>Developed by Kevin Andagoya - 2026</i></small>",
+    unsafe_allow_html=True
+)
+
+# --- Ícono de ayuda (abre tutorial.html en nueva pestaña) ---
+st.markdown(
+    """
+    <div style="position: absolute; top: 10px; left: 10px;">
+        <a href="tutorial.html" target="_blank" style="text-decoration:none; font-size:20px;">
+            ❓
+        </a>
+    </div>
+    """,
     unsafe_allow_html=True
 )
 

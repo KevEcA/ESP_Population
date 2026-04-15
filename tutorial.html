@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tutorial ESP Analysis</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+        h1, h2 { color: #004080; }
+        .lang-select { position: fixed; top: 10px; right: 10px; }
+        .section { margin-bottom: 30px; }
+    </style>
+    <script>
+        function switchLang(lang) {
+            document.querySelectorAll(".ES").forEach(el => el.style.display = (lang === "ES") ? "block" : "none");
+            document.querySelectorAll(".EN").forEach(el => el.style.display = (lang === "EN") ? "block" : "none");
+        }
+    </script>
+</head>
+<body onload="switchLang('ES')">
+
+<div class="lang-select">
+    <label for="lang">Idioma / Language: </label>
+    <select id="lang" onchange="switchLang(this.value)">
+        <option value="ES">ES</option>
+        <option value="EN">EN</option>
+    </select>
+</div>
+
+<!-- Español -->
+<div class="ES">
+    <h1>Manual de uso</h1>
+
+    <div class="section">
+        <h2>1. Introducción</h2>
+        <p>Este programa tiene como objetivo analizar la población viva y muerta de bombas ESP. 
+        En las gráficas de barras se muestra la cantidad de pozos, mientras que en las gráficas de box and whisker se visualiza la distribución del RL. 
+        El usuario puede agrupar la población en diferentes bins de RL. Finalmente, la última sección utiliza el método Kaplan–Meier (KM).</p>
+    </div>
+
+    <div class="section">
+        <h2>2. Input esperado</h2>
+        <ul>
+            <li><b>Well_ID</b>: Identificador del pozo.</li>
+            <li><b>Run_Date</b>: Fecha de arranque (formato día-mes-año, ej. 15-Sep-23).</li>
+            <li><b>Stop_Date</b>: Fecha de paro. Si se deja en blanco, se asume que la bomba sigue operando.</li>
+            <li><b>State</b>: 1 = pozo fallado, 0 = pozo no fallado o censurado.</li>
+            <li><b>Cause</b>: Categorías permitidas (escribir exactamente):
+                <ul>
+                    <li>Fail</li>
+                    <li>Manual off</li>
+                    <li>Tbg/Csg</li>
+                </ul>
+            </li>
+        </ul>
+        <p>Estas categorías se usan para diferenciar causas de paro y para definir si un pozo se considera fallado o censurado.</p>
+    </div>
+
+    <div class="section">
+        <h2>3. Conceptos</h2>
+        <p><b>Bins</b>: Intervalos de RL que agrupan la población en rangos definidos por el usuario.</p>
+        <p><b>Failed pump</b>: Bomba que ha fallado (State=1).</p>
+        <p><b>Censored pump</b>: Bomba que no ha fallado pero se detuvo por otra razón o sigue activa.</p>
+        <p><b>Kaplan–Meier (KM)</b>: Método estadístico robusto para estimar la probabilidad de supervivencia en poblaciones con datos censurados.</p>
+        <p><b>Box and whisker plot</b>: La línea central representa la mediana, la caja el rango intercuartílico (Q1–Q3), los whiskers los valores dentro de 1.5 IQR y los puntos fuera son outliers.</p>
+        <p><b>Intervalos de confianza</b>: Se calculan a partir de la varianza estimada de la función de supervivencia (ej. método Greenwood). Representan el rango donde se espera que esté la verdadera curva con un nivel de confianza (ej. 95%).</p>
+    </div>
+
+    <div class="section">
+        <h2>Conclusión</h2>
+        <p>Programa desarrollado por: <b>Kevin Andagoya</b><br>
+        📧 kandagoya@slb.com<br>
+        Contactar en caso de cualquier inquietud o sugerencia.</p>
+    </div>
+</div>
+
+<!-- English -->
+<div class="EN">
+    <h1>User Manual</h1>
+
+    <div class="section">
+        <h2>1. Introduction</h2>
+        <p>This program analyzes the active and failed ESP pump population. 
+        Bar charts show the number of wells, while box and whisker plots display the RL distribution. 
+        Users can group the population into different RL bins. Finally, the last section applies the Kaplan–Meier (KM) method.</p>
+    </div>
+
+    <div class="section">
+        <h2>2. Expected Input</h2>
+        <ul>
+            <li><b>Well_ID</b>: Well identifier.</li>
+            <li><b>Run_Date</b>: Start date (format day-month-year, e.g., 15-Sep-23).</li>
+            <li><b>Stop_Date</b>: Stop date. If left blank, the pump is assumed to still be running.</li>
+            <li><b>State</b>: 1 = failed well, 0 = censored or still active.</li>
+            <li><b>Cause</b>: Allowed categories (must be written exactly):
+                <ul>
+                    <li>Fail</li>
+                    <li>Manual off</li>
+                    <li>Tbg/Csg</li>
+                </ul>
+            </li>
+        </ul>
+        <p>These categories are used to distinguish reasons for stopping and to classify wells as failed or censored.</p>
+    </div>
+
+    <div class="section">
+        <h2>3. Concepts</h2>
+        <p><b>Bins</b>: RL intervals grouping the population into ranges defined by the user.</p>
+        <p><b>Failed pump</b>: Pump that has failed (State=1).</p>
+        <p><b>Censored pump</b>: Pump that has not failed but was stopped for another reason or is still active.</p>
+        <p><b>Kaplan–Meier (KM)</b>: A robust statistical method to estimate survival probability in populations with censored data.</p>
+        <p><b>Box and whisker plot</b>: The central line represents the median, the box the interquartile range (Q1–Q3), the whiskers values within 1.5 IQR, and points outside are outliers.</p>
+        <p><b>Confidence intervals</b>: Derived from the variance of the survival function (e.g., Greenwood’s formula). They represent the range where the true curve is expected to lie with a given confidence level (e.g., 95%).</p>
+    </div>
+
+    <div class="section">
+        <h2>Conclusion</h2>
+        <p>Program developed by: <b>Kevin Andagoya</b><br>
+        📧 kandagoya@slb.com<br>
+        Contact for any questions or suggestions.</p>
+    </div>
+</div>
+
+</body>
+</html>

@@ -134,8 +134,7 @@ if uploaded_file:
     bins_viva.append(max_rl_viva)
     
     # --- Gráficas población viva ---
-    results_viva = []
-    viva_all = []
+    results_viva, viva_all = [], []
     for year in years:
         cutoff = datetime(year, 12, 31)
         active = df[(df["Run_Date"] <= cutoff) & ((df["Stop_Date"].isna()) | (df["Stop_Date"] > cutoff))].copy()
@@ -154,11 +153,13 @@ if uploaded_file:
         viva_final = pd.concat(viva_all)
         col1, col2 = st.columns(2)
         with col1:
+            # Aquí el barmode depende del radio
             fig_bar_viva = px.bar(final_viva, x="RL_segment", y="Count", color="Year", barmode=bar_mode_viva)
             st.plotly_chart(fig_bar_viva, use_container_width=True)
         with col2:
             fig_box_viva = px.box(viva_final, x="RL_segment", y="RL_at_year", color="Year")
             st.plotly_chart(fig_box_viva, use_container_width=True)
+
                 
     # --- Titulo de gráficas población fallada ---
         st.subheader(texts[lang]["fail_header"])

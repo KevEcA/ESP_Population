@@ -182,11 +182,11 @@ if uploaded_file:
             fig_box_fail = px.box(fail_final, x="RL_segment", y="RL_at_year", color="Year")
             st.plotly_chart(fig_box_fail, use_container_width=True)
     
-    # --- Definir bins poblacion fallada---
-
-    bins_input_fail = st.text_input(texts[lang]["bins_fail"], "0,300,600,900")
-    bins_fail = [int(x) for x in bins_input_fail.split(",")]
-    bins_fail.append(999999)
+        # --- Definir bins poblacion fallada---
+    
+        bins_input_fail = st.text_input(texts[lang]["bins_fail"], "0,300,600,900")
+        bins_fail = [int(x) for x in bins_input_fail.split(",")]
+        bins_fail.append(999999)
         
         # --- Kaplan–Meier ---
         st.subheader(texts[lang]["km_header"])

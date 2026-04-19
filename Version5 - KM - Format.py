@@ -126,7 +126,12 @@ bar_mode_viva = st.radio(
 # --- Definir bins población viva ---
 bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900")
 bins_viva = [int(x) for x in bins_input_viva.split(",")]
-bins_viva.append(999999)
+
+# Calcular el máximo RL disponible en la población viva
+max_rl_viva = int(df["Run_Date"].apply(lambda d: (datetime.today() - d).days if pd.notna(d) else 0).max())
+
+# Añadir el máximo como último bin
+bins_viva.append(max_rl_viva)
 
 # --- Gráficas población viva ---
 results_viva = []
@@ -158,11 +163,18 @@ if results_viva:
 # --- Titulo de gráficas población fallada ---
     st.subheader(texts[lang]["fail_header"])
     
-    # --- Definir bins poblacion fallada---
-    
+       
+    # --- Definir bins población fallada ---
     bins_input_fail = st.text_input(texts[lang]["bins_fail"], "0,300,600,900")
     bins_fail = [int(x) for x in bins_input_fail.split(",")]
-    bins_fail.append(999999)
+    
+    # Calcular el máximo RL disponible en la población fallada
+    df_fail_temp = df[df["Stop_Date"].notna()].copy()
+    df_fail_temp["RL_at_year"] = (df_fail_temp["Stop_Date"] - df_fail_temp["Run_Date"]).dt.days
+    max_rl_fail = int(df_fail_temp["RL_at_year"].max())
+    
+    # Añadir el máximo como último bin
+    bins_fail.append(max_rl_fail)
     
     # --- Gráficas población fallada/censurada ---
     results_fail = []
@@ -193,7 +205,8 @@ if results_viva:
         with col4:
             fig_box_fail = px.box(fail_final, x="RL_segment", y="RL_at_year", color="Year")
             st.plotly_chart(fig_box_fail, use_container_width=True)
-    
+
+    """
     # --- Validación de estados ---
     st.write("Conteo de estados:", df["State"].value_counts(dropna=False))
     #st.write("Ejemplo de 2026:", df[df["Run_Date"].dt.year == 2026][["Well_ID","Run_Date","Stop_Date","State"]])
@@ -220,7 +233,9 @@ if results_viva:
     st.write("Con Stop_Date:", con_stop)
     st.write("   - Fallas (State=1):", fallas)
     st.write("   - Censurados (State=0):", censurados)
-    
+    """
+
+    # -------------------------------------------------------------------------------------------#
     # --- Preparar datos para KM ---
     df_km = df.copy()
     

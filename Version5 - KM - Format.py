@@ -113,55 +113,55 @@ if uploaded_file:
     
     
    # --- Título de gráficas población viva ---
-st.subheader(texts[lang]["viva_header"])
+    st.subheader(texts[lang]["viva_header"])
 
-# --- Selector de modo de barras ---
-bar_mode_viva = st.radio(
-    "Modo de visualización (población viva):",
-    options=["stack", "group"],
-    index=1,  # por defecto "group"
-    format_func=lambda x: "Apilado" if x == "stack" else "Lado a lado"
-)
+    # --- Selector de modo de barras ---
+    bar_mode_viva = st.radio(
+        "Modo de visualización (población viva):",
+        options=["stack", "group"],
+        index=1,  # por defecto "group"
+        format_func=lambda x: "Apilado" if x == "stack" else "Lado a lado"
+    )
 
-# --- Definir bins población viva ---
-bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900")
-bins_viva = [int(x) for x in bins_input_viva.split(",")]
+    # --- Definir bins población viva ---
+    bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900")
+    bins_viva = [int(x) for x in bins_input_viva.split(",")]
 
-# Calcular el máximo RL disponible en la población viva
-max_rl_viva = int(df["Run_Date"].apply(lambda d: (datetime.today() - d).days if pd.notna(d) else 0).max())
-
-# Añadir el máximo como último bin
-bins_viva.append(max_rl_viva)
-
-# --- Gráficas población viva ---
-results_viva = []
-viva_all = []
-for year in years:
-    cutoff = datetime(year, 12, 31)
-    active = df[(df["Run_Date"] <= cutoff) & ((df["Stop_Date"].isna()) | (df["Stop_Date"] > cutoff))].copy()
-    active["RL_at_year"] = (cutoff - active["Run_Date"]).dt.days
-    intervals = pd.cut(active["RL_at_year"], bins=bins_viva, right=False)
-    categories = [str(cat) for cat in intervals.cat.categories]
-    active["RL_segment"] = pd.Categorical(intervals.astype(str), categories=categories, ordered=True)
-    counts = active.groupby("RL_segment").size().reset_index(name="Count")
-    counts["Year"] = year
-    results_viva.append(counts)
-    active["Year"] = year
-    viva_all.append(active)
-
-if results_viva:
-    final_viva = pd.concat(results_viva)
-    viva_final = pd.concat(viva_all)
-    col1, col2 = st.columns(2)
-    with col1:
-        fig_bar_viva = px.bar(final_viva, x="RL_segment", y="Count", color="Year", barmode=bar_mode_viva)
-        st.plotly_chart(fig_bar_viva, use_container_width=True)
-    with col2:
-        fig_box_viva = px.box(viva_final, x="RL_segment", y="RL_at_year", color="Year")
-        st.plotly_chart(fig_box_viva, use_container_width=True)
-            
-# --- Titulo de gráficas población fallada ---
-    st.subheader(texts[lang]["fail_header"])
+    # Calcular el máximo RL disponible en la población viva
+    max_rl_viva = int(df["Run_Date"].apply(lambda d: (datetime.today() - d).days if pd.notna(d) else 0).max())
+    
+    # Añadir el máximo como último bin
+    bins_viva.append(max_rl_viva)
+    
+    # --- Gráficas población viva ---
+    results_viva = []
+    viva_all = []
+    for year in years:
+        cutoff = datetime(year, 12, 31)
+        active = df[(df["Run_Date"] <= cutoff) & ((df["Stop_Date"].isna()) | (df["Stop_Date"] > cutoff))].copy()
+        active["RL_at_year"] = (cutoff - active["Run_Date"]).dt.days
+        intervals = pd.cut(active["RL_at_year"], bins=bins_viva, right=False)
+        categories = [str(cat) for cat in intervals.cat.categories]
+        active["RL_segment"] = pd.Categorical(intervals.astype(str), categories=categories, ordered=True)
+        counts = active.groupby("RL_segment").size().reset_index(name="Count")
+        counts["Year"] = year
+        results_viva.append(counts)
+        active["Year"] = year
+        viva_all.append(active)
+    
+    if results_viva:
+        final_viva = pd.concat(results_viva)
+        viva_final = pd.concat(viva_all)
+        col1, col2 = st.columns(2)
+        with col1:
+            fig_bar_viva = px.bar(final_viva, x="RL_segment", y="Count", color="Year", barmode=bar_mode_viva)
+            st.plotly_chart(fig_bar_viva, use_container_width=True)
+        with col2:
+            fig_box_viva = px.box(viva_final, x="RL_segment", y="RL_at_year", color="Year")
+            st.plotly_chart(fig_box_viva, use_container_width=True)
+                
+    # --- Titulo de gráficas población fallada ---
+        st.subheader(texts[lang]["fail_header"])
     
        
     # --- Definir bins población fallada ---

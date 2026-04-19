@@ -185,7 +185,6 @@ if uploaded_file:
     if results_fail:
         final_fail = pd.concat(results_fail)
         fail_final = pd.concat(fail_all)
-        st.subheader(texts[lang]["fail_header"])
         col3, col4 = st.columns(2)
         with col3:
             fig_bar_fail = px.bar(final_fail, x="RL_segment", y="Count", color="Year", barmode="group")

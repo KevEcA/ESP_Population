@@ -124,12 +124,12 @@ if uploaded_file:
     )
 
     # --- Definir bins población viva ---
-bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900")
-bins_viva = [int(x) for x in bins_input_viva.split(",")]
-
-# Calcular máximo RL y añadirlo como último bin
-max_rl_viva = int((df["Stop_Date"].fillna(datetime.today()) - df["Run_Date"]).dt.days.max())
-bins_viva.append(max_rl_viva)
+    bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900")
+    bins_viva = [int(x) for x in bins_input_viva.split(",")]
+    
+    # Calcular máximo RL y añadirlo como último bin
+    max_rl_viva = int((df["Stop_Date"].fillna(datetime.today()) - df["Run_Date"]).dt.days.max())
+    bins_viva.append(max_rl_viva)
 
     # --- Gráficas población viva ---
     results_viva, viva_all = [], []

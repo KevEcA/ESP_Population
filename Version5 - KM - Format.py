@@ -184,9 +184,16 @@ if uploaded_file:
 
                 
     # --- Titulo de gráficas población fallada ---
-        st.subheader(texts[lang]["fail_header"])
+    st.subheader(texts[lang]["fail_header"])
     
-       
+    # --- Selector de modo de barras ---
+    bar_mode_fail = st.radio(
+        "Modo de visualización (población fallada):",
+        options=["stack", "group"],
+        index=1,  # por defecto "group"
+        format_func=lambda x: "Apilado" if x == "stack" else "Lado a lado"
+    )
+    
     # --- Definir bins población fallada ---
     bins_input_fail = st.text_input(texts[lang]["bins_fail"], "0,300,600,900")
     bins_fail = [int(x) for x in bins_input_fail.split(",")]
@@ -194,10 +201,14 @@ if uploaded_file:
     # Calcular el máximo RL disponible en la población fallada
     df_fail_temp = df[df["Stop_Date"].notna()].copy()
     df_fail_temp["RL_at_year"] = (df_fail_temp["Stop_Date"] - df_fail_temp["Run_Date"]).dt.days
-    max_rl_fail = int(df_fail_temp["RL_at_year"].max())
+    max_rl_fail = int(df_fail_temp["RL_at_year"].max()) if not df_fail_temp["RL_at_year"].isna().all() else 0
     
-    # Añadir el máximo como último bin
-    bins_fail.append(max_rl_fail)
+    # Añadir el máximo como último bin (si max > último bin definido)
+    if max_rl_fail > bins_fail[-1]:
+        bins_fail.append(max_rl_fail)
+    else:
+        # asegurar que el último bin sea al menos mayor que el anterior
+        bins_fail.append(bins_fail[-1] + 1)
     
     # --- Gráficas población fallada/censurada ---
     results_fail = []
@@ -208,22 +219,50 @@ if uploaded_file:
             ((df["State"] == 1) | (df["Cause"] == "Tbg/Csg")) &
             (df["Cause"] != "Manual off")
         ].copy()
+    
+        if failed.empty:
+            # crear estructura vacía con columnas esperadas para mantener consistencia
+            failed = failed.assign(RL_at_year=pd.Series(dtype="float64"))
+    
         failed["RL_at_year"] = (failed["Stop_Date"] - failed["Run_Date"]).dt.days
-        intervals = pd.cut(failed["RL_at_year"], bins=bins_fail, right=False)
-        categories = [str(cat) for cat in intervals.cat.categories]
-        failed["RL_segment"] = pd.Categorical(intervals.astype(str), categories=categories, ordered=True)
-        counts = failed.groupby("RL_segment").size().reset_index(name="Count")
-        counts["Year"] = year
+    
+        # Crear intervalos y etiquetas consistentes
+        intervals = pd.cut(failed["RL_at_year"].fillna(-1), bins=bins_fail, right=False)
+        labels = [str(cat) for cat in intervals.cat.categories]
+        # Para valores NaN (por ejemplo filas vacías) usamos etiqueta del primer bin si corresponde
+        failed["RL_segment"] = pd.Categorical(intervals.astype(str), categories=labels, ordered=True)
+        failed["Year"] = str(year)
+    
+        # Agrupar por bin y año (una fila por combinación)
+        counts = failed.groupby(["RL_segment", "Year"]).size().reset_index(name="Count")
         results_fail.append(counts)
-        failed["Year"] = year
         fail_all.append(failed)
-
+    
     if results_fail:
-        final_fail = pd.concat(results_fail)
-        fail_final = pd.concat(fail_all)
+        # Concatenar y asegurar que todas las combinaciones (segmento x año) existan
+        all_counts = pd.concat(results_fail, ignore_index=True)
+    
+        # Definir orden de segmentos y años
+        all_segments = labels
+        all_years = [str(y) for y in years]
+    
+        # Reindexar para incluir combinaciones faltantes con Count = 0
+        idx = pd.MultiIndex.from_product([all_segments, all_years], names=["RL_segment", "Year"])
+        final_fail = all_counts.set_index(["RL_segment", "Year"]).reindex(idx, fill_value=0).reset_index()
+    
+        # Forzar tipos categóricos y ordenados (importante para que Plotly agrupe correctamente)
+        final_fail["RL_segment"] = pd.Categorical(final_fail["RL_segment"], categories=all_segments, ordered=True)
+        final_fail["Year"] = pd.Categorical(final_fail["Year"], categories=all_years, ordered=True)
+    
+        # Preparar dataframe para boxplot (mantener filas originales)
+        fail_final = pd.concat(fail_all, ignore_index=True)
+        if "RL_segment" in fail_final.columns:
+            fail_final["RL_segment"] = pd.Categorical(fail_final["RL_segment"], categories=all_segments, ordered=True)
+        fail_final["Year"] = fail_final["Year"].astype(str)
+    
         col3, col4 = st.columns(2)
         with col3:
-            fig_bar_fail = px.bar(final_fail, x="RL_segment", y="Count", color="Year", barmode="group")
+            fig_bar_fail = px.bar(final_fail, x="RL_segment", y="Count", color="Year", barmode=bar_mode_fail)
             st.plotly_chart(fig_bar_fail, use_container_width=True)
         with col4:
             fig_box_fail = px.box(fail_final, x="RL_segment", y="RL_at_year", color="Year")

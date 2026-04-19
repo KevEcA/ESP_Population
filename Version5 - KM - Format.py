@@ -206,7 +206,7 @@ if uploaded_file:
             fig_box_fail = px.box(fail_final, x="RL_segment", y="RL_at_year", color="Year")
             st.plotly_chart(fig_box_fail, use_container_width=True)
 
-    """
+    # """
     # # --- Validación de estados ---
     # st.write("Conteo de estados:", df["State"].value_counts(dropna=False))
     # #st.write("Ejemplo de 2026:", df[df["Run_Date"].dt.year == 2026][["Well_ID","Run_Date","Stop_Date","State"]])
@@ -233,7 +233,7 @@ if uploaded_file:
     # st.write("Con Stop_Date:", con_stop)
     # st.write("   - Fallas (State=1):", fallas)
     # st.write("   - Censurados (State=0):", censurados)
-    """
+    # """
 
     # -------------------------------------------------------------------------------------------#
     # --- Preparar datos para KM ---

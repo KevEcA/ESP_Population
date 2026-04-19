@@ -112,9 +112,9 @@ if uploaded_file:
     years = st.multiselect(texts[lang]["years"], available_years, default=available_years)
     
     
-   # --- Título de gráficas población viva ---
+   # --- Titulo de gráficas población viva ---
     st.subheader(texts[lang]["viva_header"])
-
+    
     # --- Selector de modo de barras ---
     bar_mode_viva = st.radio(
         "Modo de visualización (población viva):",
@@ -122,30 +122,33 @@ if uploaded_file:
         index=1,  # por defecto "group"
         format_func=lambda x: "Apilado" if x == "stack" else "Lado a lado"
     )
-
+    
     # --- Definir bins población viva ---
     bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900")
     bins_viva = [int(x) for x in bins_input_viva.split(",")]
     
-    # Calcular máximo RL y añadirlo como último bin
-    max_rl_viva = int((df["Stop_Date"].fillna(datetime.today()) - df["Run_Date"]).dt.days.max())
+    # Calcular el máximo RL disponible en la población viva
+    df_viva_temp = df.copy()
+    df_viva_temp["RL_at_year"] = (df_viva_temp["Stop_Date"].fillna(datetime.today()) - df_viva_temp["Run_Date"]).dt.days
+    max_rl_viva = int(df_viva_temp["RL_at_year"].max())
+    
+    # Añadir el máximo como último bin
     bins_viva.append(max_rl_viva)
-
+    
     # --- Gráficas población viva ---
-    results_viva, viva_all = [], []
+    results_viva = []
+    viva_all = []
     for year in years:
         cutoff = datetime(year, 12, 31)
         active = df[(df["Run_Date"] <= cutoff) & ((df["Stop_Date"].isna()) | (df["Stop_Date"] > cutoff))].copy()
         active["RL_at_year"] = (cutoff - active["Run_Date"]).dt.days
     
-        # Crear intervalos como categorías
         intervals = pd.cut(active["RL_at_year"], bins=bins_viva, right=False)
-        active["RL_segment"] = intervals.astype(str)
+        categories = [str(cat) for cat in intervals.cat.categories]
+        active["RL_segment"] = pd.Categorical(intervals.astype(str), categories=categories, ordered=True)
         active["Year"] = year
     
-        # Agrupar por bin y año en el mismo paso
         counts = active.groupby(["RL_segment", "Year"]).size().reset_index(name="Count")
-    
         results_viva.append(counts)
         viva_all.append(active)
     

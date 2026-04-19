@@ -143,19 +143,37 @@ if uploaded_file:
         active = df[(df["Run_Date"] <= cutoff) & ((df["Stop_Date"].isna()) | (df["Stop_Date"] > cutoff))].copy()
         active["RL_at_year"] = (cutoff - active["Run_Date"]).dt.days
     
+        # Crear intervalos y etiquetas consistentes
         intervals = pd.cut(active["RL_at_year"], bins=bins_viva, right=False)
-        categories = [str(cat) for cat in intervals.cat.categories]
-        active["RL_segment"] = pd.Categorical(intervals.astype(str), categories=categories, ordered=True)
-        active["Year"] = year
+        labels = [str(cat) for cat in intervals.cat.categories]   # etiquetas ordenadas y consistentes
+        active["RL_segment"] = pd.Categorical(intervals.astype(str), categories=labels, ordered=True)
+        active["Year"] = str(year)   # forzar Year como string
     
-        # Agrupar por bin y año
+        # Agrupar por bin y año (una fila por combinación)
         counts = active.groupby(["RL_segment", "Year"]).size().reset_index(name="Count")
         results_viva.append(counts)
         viva_all.append(active)
     
     if results_viva:
-        final_viva = pd.concat(results_viva)
-        viva_final = pd.concat(viva_all)
+        # Concatenar y asegurar que todas las combinaciones (segmento x año) existan
+        all_counts = pd.concat(results_viva, ignore_index=True)
+    
+        # Definir orden de segmentos y años
+        all_segments = labels
+        all_years = [str(y) for y in years]
+    
+        # Reindexar para incluir combinaciones faltantes con Count = 0
+        idx = pd.MultiIndex.from_product([all_segments, all_years], names=["RL_segment", "Year"])
+        final_viva = all_counts.set_index(["RL_segment", "Year"]).reindex(idx, fill_value=0).reset_index()
+    
+        # Forzar tipos categóricos y ordenados (importante para que Plotly agrupe correctamente)
+        final_viva["RL_segment"] = pd.Categorical(final_viva["RL_segment"], categories=all_segments, ordered=True)
+        final_viva["Year"] = pd.Categorical(final_viva["Year"], categories=all_years, ordered=True)
+    
+        viva_final = pd.concat(viva_all, ignore_index=True)
+        viva_final["RL_segment"] = pd.Categorical(viva_final["RL_segment"], categories=all_segments, ordered=True)
+        viva_final["Year"] = viva_final["Year"].astype(str)
+    
         col1, col2 = st.columns(2)
         with col1:
             fig_bar_viva = px.bar(final_viva, x="RL_segment", y="Count", color="Year", barmode=bar_mode_viva)

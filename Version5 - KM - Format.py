@@ -110,7 +110,9 @@ if uploaded_file:
 
     # --- Selector de años ---
     years = st.multiselect(texts[lang]["years"], available_years, default=available_years)
-
+    
+    
+    # --- Titulo de gráficas población viva ---
     st.subheader(texts[lang]["viva_header"])
 
     # --- Definir bins poblacion viva---
@@ -152,6 +154,9 @@ if uploaded_file:
     st.write("Conteo de estados:", df["State"].value_counts(dropna=False))
     st.write("Ejemplo de 2026:", df[df["Run_Date"].dt.year == 2026][["Well_ID","Run_Date","Stop_Date","State"]])
 
+    # --- Titulo de gráficas población fallada ---
+    st.subheader(texts[lang]["fail_header"])
+    
     # --- Definir bins poblacion fallada---
     
     bins_input_fail = st.text_input(texts[lang]["bins_fail"], "0,300,600,900")

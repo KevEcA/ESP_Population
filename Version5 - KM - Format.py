@@ -111,12 +111,13 @@ if uploaded_file:
     # --- Selector de años ---
     years = st.multiselect(texts[lang]["years"], available_years, default=available_years)
 
-    # --- Definir bins poblacion fallada---
-    
-    bins_input_fail = st.text_input(texts[lang]["bins_fail"], "0,300,600,900")
-    bins_fail = [int(x) for x in bins_input_fail.split(",")]
-    bins_fail.append(999999)
 
+
+    # --- Definir bins poblacion viva---
+    bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900")
+    bins_viva = [int(x) for x in bins_input_viva.split(",")]
+    bins_viva.append(999999)
+    
     # --- Gráficas población viva ---
     results_viva = []
     viva_all = []
@@ -145,16 +146,17 @@ if uploaded_file:
             fig_box_viva = px.box(viva_final, x="RL_segment", y="RL_at_year", color="Year")
             st.plotly_chart(fig_box_viva, use_container_width=True)
             
-    # --- Definir bins poblacion viva---
-    bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900")
-    bins_viva = [int(x) for x in bins_input_viva.split(",")]
-    bins_viva.append(999999)
+
     
     # --- Validación de estados ---
     st.write("Conteo de estados:", df["State"].value_counts(dropna=False))
     st.write("Ejemplo de 2026:", df[df["Run_Date"].dt.year == 2026][["Well_ID","Run_Date","Stop_Date","State"]])
 
-
+    # --- Definir bins poblacion fallada---
+    
+    bins_input_fail = st.text_input(texts[lang]["bins_fail"], "0,300,600,900")
+    bins_fail = [int(x) for x in bins_input_fail.split(",")]
+    bins_fail.append(999999)
     
     # --- Gráficas población fallada/censurada ---
     results_fail = []
@@ -187,8 +189,7 @@ if uploaded_file:
             fig_box_fail = px.box(fail_final, x="RL_segment", y="RL_at_year", color="Year")
             st.plotly_chart(fig_box_fail, use_container_width=True)
     
-
-        
+       
         # --- Kaplan–Meier ---
         st.subheader(texts[lang]["km_header"])
 

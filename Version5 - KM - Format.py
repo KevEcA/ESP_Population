@@ -112,41 +112,40 @@ if uploaded_file:
     years = st.multiselect(texts[lang]["years"], available_years, default=available_years)
     
     
-    # --- Titulo de gráficas población viva ---
-    st.subheader(texts[lang]["viva_header"])
+   # --- Título de gráficas población viva ---
+st.subheader(texts[lang]["viva_header"])
 
-    # --- Definir bins poblacion viva---
-    bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900")
-    bins_viva = [int(x) for x in bins_input_viva.split(",")]
-    bins_viva.append(999999)
-    
-    # --- Gráficas población viva ---
-    results_viva = []
-    viva_all = []
-    for year in years:
-        cutoff = datetime(year, 12, 31)
-        active = df[(df["Run_Date"] <= cutoff) & ((df["Stop_Date"].isna()) | (df["Stop_Date"] > cutoff))].copy()
-        active["RL_at_year"] = (cutoff - active["Run_Date"]).dt.days
-        intervals = pd.cut(active["RL_at_year"], bins=bins_viva, right=False)
-        categories = [str(cat) for cat in intervals.cat.categories]
-        active["RL_segment"] = pd.Categorical(intervals.astype(str), categories=categories, ordered=True)
-        counts = active.groupby("RL_segment").size().reset_index(name="Count")
-        counts["Year"] = year
-        results_viva.append(counts)
-        active["Year"] = year
-        viva_all.append(active)
+# --- Definir bins población viva ---
+bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900")
+bins_viva = [int(x) for x in bins_input_viva.split(",")]
+bins_viva.append(999999)
 
-    if results_viva:
-        final_viva = pd.concat(results_viva)
-        viva_final = pd.concat(viva_all)
-        # ---st.subheader(texts[lang]["viva_header"])
-        col1, col2 = st.columns(2)
-        with col1:
-            fig_bar_viva = px.bar(final_viva, x="RL_segment", y="Count", color="Year", barmode="group")
-            st.plotly_chart(fig_bar_viva, use_container_width=True)
-        with col2:
-            fig_box_viva = px.box(viva_final, x="RL_segment", y="RL_at_year", color="Year")
-            st.plotly_chart(fig_box_viva, use_container_width=True)
+# --- Gráficas población viva ---
+results_viva = []
+viva_all = []
+for year in years:
+    cutoff = datetime(year, 12, 31)
+    active = df[(df["Run_Date"] <= cutoff) & ((df["Stop_Date"].isna()) | (df["Stop_Date"] > cutoff))].copy()
+    active["RL_at_year"] = (cutoff - active["Run_Date"]).dt.days
+    intervals = pd.cut(active["RL_at_year"], bins=bins_viva, right=False)
+    categories = [str(cat) for cat in intervals.cat.categories]
+    active["RL_segment"] = pd.Categorical(intervals.astype(str), categories=categories, ordered=True)
+    counts = active.groupby("RL_segment").size().reset_index(name="Count")
+    counts["Year"] = year
+    results_viva.append(counts)
+    active["Year"] = year
+    viva_all.append(active)
+
+if results_viva:
+    final_viva = pd.concat(results_viva)
+    viva_final = pd.concat(viva_all)
+    col1, col2 = st.columns(2)
+    with col1:
+        fig_bar_viva = px.bar(final_viva, x="RL_segment", y="Count", color="Year", barmode="group")
+        st.plotly_chart(fig_bar_viva, use_container_width=True)
+    with col2:
+        fig_box_viva = px.box(viva_final, x="RL_segment", y="RL_at_year", color="Year")
+        st.plotly_chart(fig_box_viva, use_container_width=True)
             
 
     

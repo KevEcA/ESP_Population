@@ -241,6 +241,7 @@ if uploaded_file:
         x=kmf.survival_function_.index,
         y=kmf.survival_function_["Total"],
         mode="lines",
+        line_shape="hv",   # escalones horizontales-verticales
         name="Total"
     ))
     
@@ -279,11 +280,11 @@ if uploaded_file:
         if len(subset) > 0:
             kmf.fit(subset["duration"], event_observed=subset["event"], label=str(year))
     
-            # Curva principal
             fig_years.add_trace(go.Scatter(
                 x=kmf.survival_function_.index,
                 y=kmf.survival_function_[str(year)],
                 mode="lines",
+                line_shape="hv",   # escalones horizontales-verticales
                 name=str(year)
             ))
     

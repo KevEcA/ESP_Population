@@ -111,14 +111,12 @@ if uploaded_file:
     # --- Selector de años ---
     years = st.multiselect(texts[lang]["years"], available_years, default=available_years)
 
-    # --- Definir bins ---
+    # --- Definir bins poblacion viva---
     bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900")
     bins_viva = [int(x) for x in bins_input_viva.split(",")]
     bins_viva.append(999999)
 
-    bins_input_fail = st.text_input(texts[lang]["bins_fail"], "0,300,600,900")
-    bins_fail = [int(x) for x in bins_input_fail.split(",")]
-    bins_fail.append(999999)
+
 
     # --- Gráficas población viva ---
     results_viva = []
@@ -152,6 +150,11 @@ if uploaded_file:
     st.write("Conteo de estados:", df["State"].value_counts(dropna=False))
     st.write("Ejemplo de 2026:", df[df["Run_Date"].dt.year == 2026][["Well_ID","Run_Date","Stop_Date","State"]])
 
+    # --- Definir bins poblacion fallada---
+
+    bins_input_fail = st.text_input(texts[lang]["bins_fail"], "0,300,600,900")
+    bins_fail = [int(x) for x in bins_input_fail.split(",")]
+    bins_fail.append(999999)
     
     # --- Gráficas población fallada/censurada ---
     results_fail = []

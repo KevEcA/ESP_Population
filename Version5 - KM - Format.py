@@ -210,96 +210,105 @@ if uploaded_file:
             st.plotly_chart(fig_box_fail, use_container_width=True)
     
        
-        # --- Kaplan–Meier ---
-        st.subheader(texts[lang]["km_header"])
-
-        # Preparar datos
-        df_km = df.copy()
-        df_km["duration"] = (df_km["Stop_Date"].fillna(datetime.today()) - df_km["Run_Date"]).dt.days
-        df_km["event"] = ((df_km["State"] == 1) | (df_km["Cause"] == "Tbg/Csg")).astype(int)
-
-        # Checkbox global para mostrar intervalos de confianza
-        show_ci = st.checkbox(texts[lang]["show_ci"], value=True)
-
-
-        
-        # --- Curva KM total ---
-        kmf = KaplanMeierFitter()
-        kmf.fit(df_km["duration"], event_observed=df_km["event"], label="Total")
-
-        fig_total = go.Figure()
+    # --- Kaplan–Meier ---
+    st.subheader(texts[lang]["km_header"])
+    
+    # Preparar datos
+    df_km = df.copy()
+    
+    # Normalizar State: None → 0
+    df_km["State"] = pd.to_numeric(df_km["State"], errors="coerce").fillna(0).astype(int)
+    
+    # Duración (si Stop_Date está vacío, se usa fecha actual)
+    df_km["duration"] = (df_km["Stop_Date"].fillna(datetime.today()) - df_km["Run_Date"]).dt.days
+    
+    # Evento: sólo falla real (State=1), excepto si la causa es Manual off o Tbg/Csg, o si Stop_Date está vacío
+    df_km["event"] = df_km.apply(
+        lambda row: 1 if (row["State"] == 1 and row["Cause"] not in ["Manual off", "Tbg/Csg"] and pd.notna(row["Stop_Date"]))
+        else 0,
+        axis=1
+    )
+    
+    # Checkbox global para mostrar intervalos de confianza
+    show_ci = st.checkbox(texts[lang]["show_ci"], value=True)
+    
+    # --- Curva KM total ---
+    kmf = KaplanMeierFitter()
+    kmf.fit(df_km["duration"], event_observed=df_km["event"], label="Total")
+    
+    fig_total = go.Figure()
+    fig_total.add_trace(go.Scatter(
+        x=kmf.survival_function_.index,
+        y=kmf.survival_function_["Total"],
+        mode="lines",
+        name="Total"
+    ))
+    
+    if show_ci:
+        ci = kmf.confidence_interval_
         fig_total.add_trace(go.Scatter(
-            x=kmf.survival_function_.index,
-            y=kmf.survival_function_["Total"],
+            x=ci.index,
+            y=ci.iloc[:, 0],
             mode="lines",
-            name="Total"
+            line=dict(width=0),
+            showlegend=False
         ))
-
-        if show_ci:
-            ci = kmf.confidence_interval_
-            fig_total.add_trace(go.Scatter(
-                x=ci.index,
-                y=ci.iloc[:, 0],
+        fig_total.add_trace(go.Scatter(
+            x=ci.index,
+            y=ci.iloc[:, 1],
+            mode="lines",
+            line=dict(width=0),
+            fill="tonexty",
+            opacity=0.2,
+            showlegend=False
+        ))
+    
+    fig_total.update_layout(
+        title=texts[lang]["km_total"],
+        xaxis_title=texts[lang]["x_rl"],
+        yaxis_title=texts[lang]["y_surv"]
+    )
+    st.plotly_chart(fig_total, use_container_width=True)
+    
+    # --- Curvas KM por año ---
+    fig_years = go.Figure()
+    kmf = KaplanMeierFitter()
+    
+    for year in available_years:
+        subset = df_km[df_km["Run_Date"].dt.year == year]
+        if len(subset) > 0:
+            kmf.fit(subset["duration"], event_observed=subset["event"], label=str(year))
+    
+            # Curva principal
+            fig_years.add_trace(go.Scatter(
+                x=kmf.survival_function_.index,
+                y=kmf.survival_function_[str(year)],
                 mode="lines",
-                line=dict(width=0),
-                showlegend=False
+                name=str(year)
             ))
-            fig_total.add_trace(go.Scatter(
-                x=ci.index,
-                y=ci.iloc[:, 1],
-                mode="lines",
-                line=dict(width=0),
-                fill="tonexty",
-                opacity=0.2,
-                showlegend=False
-            ))
-
-        fig_total.update_layout(
-            title=texts[lang]["km_total"],
-            xaxis_title=texts[lang]["x_rl"],
-            yaxis_title=texts[lang]["y_surv"]
-        )
-        st.plotly_chart(fig_total, use_container_width=True)
-
-        # --- Curvas KM por año ---
-        fig_years = go.Figure()
-        kmf = KaplanMeierFitter()
-
-        for year in available_years:
-            subset = df_km[df_km["Run_Date"].dt.year == year]
-            if len(subset) > 0:
-                kmf.fit(subset["duration"], event_observed=subset["event"], label=str(year))
-
-                # Curva principal
+    
+            if show_ci:
+                ci = kmf.confidence_interval_
                 fig_years.add_trace(go.Scatter(
-                    x=kmf.survival_function_.index,
-                    y=kmf.survival_function_[str(year)],
+                    x=ci.index,
+                    y=ci.iloc[:, 0],
                     mode="lines",
-                    name=str(year)
+                    line=dict(width=0),
+                    showlegend=False
                 ))
-
-                if show_ci:
-                    ci = kmf.confidence_interval_
-                    fig_years.add_trace(go.Scatter(
-                        x=ci.index,
-                        y=ci.iloc[:, 0],
-                        mode="lines",
-                        line=dict(width=0),
-                        showlegend=False
-                    ))
-                    fig_years.add_trace(go.Scatter(
-                        x=ci.index,
-                        y=ci.iloc[:, 1],
-                        mode="lines",
-                        line=dict(width=0),
-                        fill="tonexty",
-                        opacity=0.2,
-                        showlegend=False
-                    ))
-
-        fig_years.update_layout(
-            title=texts[lang]["km_years"],
-            xaxis_title=texts[lang]["x_rl"],
-            yaxis_title=texts[lang]["y_surv"]
-        )
-        st.plotly_chart(fig_years, use_container_width=True)
+                fig_years.add_trace(go.Scatter(
+                    x=ci.index,
+                    y=ci.iloc[:, 1],
+                    mode="lines",
+                    line=dict(width=0),
+                    fill="tonexty",
+                    opacity=0.2,
+                    showlegend=False
+                ))
+    
+    fig_years.update_layout(
+        title=texts[lang]["km_years"],
+        xaxis_title=texts[lang]["x_rl"],
+        yaxis_title=texts[lang]["y_surv"]
+    )
+    st.plotly_chart(fig_years, use_container_width=True)

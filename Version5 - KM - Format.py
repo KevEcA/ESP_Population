@@ -112,7 +112,7 @@ if uploaded_file:
     years = st.multiselect(texts[lang]["years"], available_years, default=available_years)
     
     
-   # --- Titulo de gráficas población viva ---
+    # --- Titulo de gráficas población viva ---
     st.subheader(texts[lang]["viva_header"])
     
     # --- Selector de modo de barras ---
@@ -148,6 +148,7 @@ if uploaded_file:
         active["RL_segment"] = pd.Categorical(intervals.astype(str), categories=categories, ordered=True)
         active["Year"] = year
     
+        # Agrupar por bin y año
         counts = active.groupby(["RL_segment", "Year"]).size().reset_index(name="Count")
         results_viva.append(counts)
         viva_all.append(active)

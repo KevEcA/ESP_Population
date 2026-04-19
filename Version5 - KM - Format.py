@@ -155,7 +155,44 @@ if results_viva:
         fig_box_viva = px.box(viva_final, x="RL_segment", y="RL_at_year", color="Year")
         st.plotly_chart(fig_box_viva, use_container_width=True)
             
+# --- Titulo de gráficas población fallada ---
+    st.subheader(texts[lang]["fail_header"])
+    
+    # --- Definir bins poblacion fallada---
+    
+    bins_input_fail = st.text_input(texts[lang]["bins_fail"], "0,300,600,900")
+    bins_fail = [int(x) for x in bins_input_fail.split(",")]
+    bins_fail.append(999999)
+    
+    # --- Gráficas población fallada/censurada ---
+    results_fail = []
+    fail_all = []
+    for year in years:
+        failed = df[
+            (df["Stop_Date"].dt.year == year) &
+            ((df["State"] == 1) | (df["Cause"] == "Tbg/Csg")) &
+            (df["Cause"] != "Manual off")
+        ].copy()
+        failed["RL_at_year"] = (failed["Stop_Date"] - failed["Run_Date"]).dt.days
+        intervals = pd.cut(failed["RL_at_year"], bins=bins_fail, right=False)
+        categories = [str(cat) for cat in intervals.cat.categories]
+        failed["RL_segment"] = pd.Categorical(intervals.astype(str), categories=categories, ordered=True)
+        counts = failed.groupby("RL_segment").size().reset_index(name="Count")
+        counts["Year"] = year
+        results_fail.append(counts)
+        failed["Year"] = year
+        fail_all.append(failed)
 
+    if results_fail:
+        final_fail = pd.concat(results_fail)
+        fail_final = pd.concat(fail_all)
+        col3, col4 = st.columns(2)
+        with col3:
+            fig_bar_fail = px.bar(final_fail, x="RL_segment", y="Count", color="Year", barmode="group")
+            st.plotly_chart(fig_bar_fail, use_container_width=True)
+        with col4:
+            fig_box_fail = px.box(fail_final, x="RL_segment", y="RL_at_year", color="Year")
+            st.plotly_chart(fig_box_fail, use_container_width=True)
     
     # --- Validación de estados ---
     st.write("Conteo de estados:", df["State"].value_counts(dropna=False))
@@ -200,44 +237,7 @@ if results_viva:
         axis=1
     )
     
-    # --- Titulo de gráficas población fallada ---
-    st.subheader(texts[lang]["fail_header"])
     
-    # --- Definir bins poblacion fallada---
-    
-    bins_input_fail = st.text_input(texts[lang]["bins_fail"], "0,300,600,900")
-    bins_fail = [int(x) for x in bins_input_fail.split(",")]
-    bins_fail.append(999999)
-    
-    # --- Gráficas población fallada/censurada ---
-    results_fail = []
-    fail_all = []
-    for year in years:
-        failed = df[
-            (df["Stop_Date"].dt.year == year) &
-            ((df["State"] == 1) | (df["Cause"] == "Tbg/Csg")) &
-            (df["Cause"] != "Manual off")
-        ].copy()
-        failed["RL_at_year"] = (failed["Stop_Date"] - failed["Run_Date"]).dt.days
-        intervals = pd.cut(failed["RL_at_year"], bins=bins_fail, right=False)
-        categories = [str(cat) for cat in intervals.cat.categories]
-        failed["RL_segment"] = pd.Categorical(intervals.astype(str), categories=categories, ordered=True)
-        counts = failed.groupby("RL_segment").size().reset_index(name="Count")
-        counts["Year"] = year
-        results_fail.append(counts)
-        failed["Year"] = year
-        fail_all.append(failed)
-
-    if results_fail:
-        final_fail = pd.concat(results_fail)
-        fail_final = pd.concat(fail_all)
-        col3, col4 = st.columns(2)
-        with col3:
-            fig_bar_fail = px.bar(final_fail, x="RL_segment", y="Count", color="Year", barmode="group")
-            st.plotly_chart(fig_bar_fail, use_container_width=True)
-        with col4:
-            fig_box_fail = px.box(fail_final, x="RL_segment", y="RL_at_year", color="Year")
-            st.plotly_chart(fig_box_fail, use_container_width=True)
     
        
     # --- Kaplan–Meier ---

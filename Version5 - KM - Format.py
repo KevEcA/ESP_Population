@@ -154,6 +154,22 @@ if uploaded_file:
     st.write("Conteo de estados:", df["State"].value_counts(dropna=False))
     st.write("Ejemplo de 2026:", df[df["Run_Date"].dt.year == 2026][["Well_ID","Run_Date","Stop_Date","State"]])
 
+    # --- Preparar datos para KM ---
+    df_km = df.copy()
+    
+    # Normalizar State: None → 0
+    df_km["State"] = pd.to_numeric(df_km["State"], errors="coerce").fillna(0).astype(int)
+    
+    # Duración (si Stop_Date está vacío, se usa fecha actual)
+    df_km["duration"] = (df_km["Stop_Date"].fillna(datetime.today()) - df_km["Run_Date"]).dt.days
+    
+    # Evento: sólo falla real (State=1), excepto si la causa es Manual off o Tbg/Csg
+    df_km["event"] = df_km.apply(
+        lambda row: 1 if (row["State"] == 1 and row["Cause"] not in ["Manual off", "Tbg/Csg"] and pd.notna(row["Stop_Date"]))
+        else 0,
+        axis=1
+    )
+    
     # --- Titulo de gráficas población fallada ---
     st.subheader(texts[lang]["fail_header"])
     

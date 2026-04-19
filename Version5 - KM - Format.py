@@ -152,8 +152,31 @@ if uploaded_file:
     
     # --- Validación de estados ---
     st.write("Conteo de estados:", df["State"].value_counts(dropna=False))
-    st.write("Ejemplo de 2026:", df[df["Run_Date"].dt.year == 2026][["Well_ID","Run_Date","Stop_Date","State"]])
+    #st.write("Ejemplo de 2026:", df[df["Run_Date"].dt.year == 2026][["Well_ID","Run_Date","Stop_Date","State"]])
 
+    # --- Conteo de pozos instalados en 2025 ---
+    df_2025 = df[df["Run_Date"].dt.year == 2025].copy()
+    
+    # Total instalados
+    total_instalados = len(df_2025)
+    
+    # Vivos (sin Stop_Date)
+    vivos = df_2025["Stop_Date"].isna().sum()
+    
+    # Con Stop_Date
+    con_stop = df_2025["Stop_Date"].notna().sum()
+    
+    # De los que tienen Stop_Date: cuántos son fallas (State=1) y cuántos censurados (State=0)
+    fallas = df_2025[(df_2025["Stop_Date"].notna()) & (df_2025["State"] == 1)].shape[0]
+    censurados = df_2025[(df_2025["Stop_Date"].notna()) & (df_2025["State"] == 0)].shape[0]
+    
+    # Mostrar resultados
+    st.write("Pozos instalados en 2025:", total_instalados)
+    st.write("Vivos (sin Stop_Date):", vivos)
+    st.write("Con Stop_Date:", con_stop)
+    st.write("   - Fallas (State=1):", fallas)
+    st.write("   - Censurados (State=0):", censurados)
+    
     # --- Preparar datos para KM ---
     df_km = df.copy()
     

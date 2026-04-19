@@ -124,28 +124,29 @@ if uploaded_file:
     )
 
     # --- Definir bins población viva ---
-    bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900")
-    bins_viva = [int(x) for x in bins_input_viva.split(",")]
+bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900")
+bins_viva = [int(x) for x in bins_input_viva.split(",")]
 
-    # Calcular el máximo RL disponible en la población viva
-    max_rl_viva = int(df["Run_Date"].apply(lambda d: (datetime.today() - d).days if pd.notna(d) else 0).max())
-    
-    # Añadir el máximo como último bin
-    bins_viva.append(max_rl_viva)
-    
+# Calcular máximo RL y añadirlo como último bin
+max_rl_viva = int((df["Stop_Date"].fillna(datetime.today()) - df["Run_Date"]).dt.days.max())
+bins_viva.append(max_rl_viva)
+
     # --- Gráficas población viva ---
     results_viva, viva_all = [], []
     for year in years:
         cutoff = datetime(year, 12, 31)
         active = df[(df["Run_Date"] <= cutoff) & ((df["Stop_Date"].isna()) | (df["Stop_Date"] > cutoff))].copy()
         active["RL_at_year"] = (cutoff - active["Run_Date"]).dt.days
+    
+        # Crear intervalos como categorías
         intervals = pd.cut(active["RL_at_year"], bins=bins_viva, right=False)
-        categories = [str(cat) for cat in intervals.cat.categories]
-        active["RL_segment"] = pd.Categorical(intervals.astype(str), categories=categories, ordered=True)
-        counts = active.groupby("RL_segment").size().reset_index(name="Count")
-        counts["Year"] = year
-        results_viva.append(counts)
+        active["RL_segment"] = intervals.astype(str)
         active["Year"] = year
+    
+        # Agrupar por bin y año en el mismo paso
+        counts = active.groupby(["RL_segment", "Year"]).size().reset_index(name="Count")
+    
+        results_viva.append(counts)
         viva_all.append(active)
     
     if results_viva:
@@ -153,7 +154,6 @@ if uploaded_file:
         viva_final = pd.concat(viva_all)
         col1, col2 = st.columns(2)
         with col1:
-            # Aquí el barmode depende del radio
             fig_bar_viva = px.bar(final_viva, x="RL_segment", y="Count", color="Year", barmode=bar_mode_viva)
             st.plotly_chart(fig_bar_viva, use_container_width=True)
         with col2:

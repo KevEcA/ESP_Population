@@ -111,7 +111,7 @@ if uploaded_file:
     # --- Selector de años ---
     years = st.multiselect(texts[lang]["years"], available_years, default=available_years)
 
-
+    st.subheader(texts[lang]["viva_header"])
 
     # --- Definir bins poblacion viva---
     bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900")
@@ -137,7 +137,7 @@ if uploaded_file:
     if results_viva:
         final_viva = pd.concat(results_viva)
         viva_final = pd.concat(viva_all)
-        st.subheader(texts[lang]["viva_header"])
+        # ---st.subheader(texts[lang]["viva_header"])
         col1, col2 = st.columns(2)
         with col1:
             fig_bar_viva = px.bar(final_viva, x="RL_segment", y="Count", color="Year", barmode="group")

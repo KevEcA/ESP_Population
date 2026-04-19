@@ -189,7 +189,7 @@ if uploaded_file:
     bins_fail.append(999999)
         
         # --- Kaplan–Meier ---
-        st.subheader(texts[lang]["km_header"])
+    st.subheader(texts[lang]["km_header"])
 
         # Preparar datos
         df_km = df.copy()

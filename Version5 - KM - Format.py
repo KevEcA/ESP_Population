@@ -321,9 +321,10 @@ if uploaded_file:
     # -----------------------------
     # --- BLOQUE KAPLAN–MEIER ---
     # -----------------------------
-
+    
     st.subheader(texts[lang]["km_header"])
-
+    
+    # Preparar dataframe para KM
     df_km = df.copy()
     df_km["State"] = pd.to_numeric(df_km["State"], errors="coerce").fillna(0).astype(int)
     df_km["duration"] = (df_km["Stop_Date"].fillna(datetime.today()) - df_km["Run_Date"]).dt.days
@@ -332,47 +333,120 @@ if uploaded_file:
         else 0,
         axis=1
     )
-
+    
+    # Checkbox para mostrar intervalos de confianza
     show_ci = st.checkbox(texts[lang]["show_ci"], value=True)
-
-    # Curva KM total
-    kmf = KaplanMeierFitter()
-    kmf.fit(df_km["duration"], event_observed=df_km["event"], label="Total")
-
-    fig_total = go.Figure()
-    fig_total.add_trace(go.Scatter(
-        x=kmf.survival_function_.index,
-        y=kmf.survival_function_["Total"],
-        mode="lines",
-        line_shape="hv",
-        name="Total"
-    ))
-
-    if show_ci:
-        ci = kmf.confidence_interval_
-        fig_total.add_trace(go.Scatter(x=ci.index, y=ci.iloc[:, 0], mode="lines", line=dict(width=0), showlegend=False))
-        fig_total.add_trace(go.Scatter(x=ci.index, y=ci.iloc[:, 1], mode="lines", line=dict(width=0), fill="tonexty", opacity=0.2, showlegend=False))
-
-    fig_total.update_layout(title=texts[lang]["km_total"], xaxis_title=texts[lang]["x_rl"], yaxis_title=texts[lang]["y_surv"])
-    st.plotly_chart(fig_total, use_container_width=True)
-
-    # Curvas KM por año
-    fig_years = go.Figure()
-    for year in available_years:
-        subset = df_km[df_km["Run_Date"].dt.year == year]
-        if len(subset) > 0:
-            kmf.fit(subset["duration"], event_observed=subset["event"], label=str(year))
-            fig_years.add_trace(go.Scatter(
-                x=kmf.survival_function_.index,
-                y=kmf.survival_function_[str(year)],
+    
+    # Filtrar datos según los años seleccionados por el usuario
+    # Si no hay años seleccionados, usar todos los años disponibles
+    if years:
+        df_km_filtered = df_km[df_km["Run_Date"].dt.year.isin(years)].copy()
+    else:
+        df_km_filtered = df_km.copy()
+    
+    # --- Curva KM total (sobre los datos filtrados por selección de años) ---
+    kmf_total = KaplanMeierFitter()
+    if len(df_km_filtered) > 0:
+        kmf_total.fit(df_km_filtered["duration"], event_observed=df_km_filtered["event"], label="Total")
+        fig_total = go.Figure()
+        fig_total.add_trace(go.Scatter(
+            x=kmf_total.survival_function_.index,
+            y=kmf_total.survival_function_["Total"],
+            mode="lines",
+            line_shape="hv",
+            name="Total",
+            line=dict(width=2, color="black")
+        ))
+    
+        if show_ci:
+            ci = kmf_total.confidence_interval_
+            # Añadir banda CI (lower then upper) con fill
+            fig_total.add_trace(go.Scatter(
+                x=ci.index,
+                y=ci.iloc[:, 0],
                 mode="lines",
-                line_shape="hv",
-                name=str(year)
+                line=dict(width=0),
+                showlegend=False,
+                hoverinfo="skip",
+                name="Total CI lower"
             ))
-            if show_ci:
-                ci = kmf.confidence_interval_
-                fig_years.add_trace(go.Scatter(x=ci.index, y=ci.iloc[:, 0], mode="lines", line=dict(width=0), showlegend=False))
-                fig_years.add_trace(go.Scatter(x=ci.index, y=ci.iloc[:, 1], mode="lines", line=dict(width=0), fill="tonexty", opacity=0.2, showlegend=False))
-
+            fig_total.add_trace(go.Scatter(
+                x=ci.index,
+                y=ci.iloc[:, 1],
+                mode="lines",
+                line=dict(width=0),
+                fill="tonexty",
+                fillcolor="rgba(0,0,0,0.08)",
+                showlegend=False,
+                hoverinfo="skip",
+                name="Total CI upper"
+            ))
+    
+        fig_total.update_layout(title=texts[lang]["km_total"], xaxis_title=texts[lang]["x_rl"], yaxis_title=texts[lang]["y_surv"])
+        st.plotly_chart(fig_total, use_container_width=True)
+    else:
+        st.info("No hay datos para la curva Kaplan–Meier total con los años seleccionados.")
+    
+    # --- Curvas KM por año de arranque (solo años seleccionados) ---
+    fig_years = go.Figure()
+    kmf = KaplanMeierFitter()
+    
+    # Asegurar que 'years' sea una lista de enteros (si viene como strings)
+    years_to_plot = [int(y) for y in years] if years else []
+    
+    for year in years_to_plot:
+        subset = df_km[df_km["Run_Date"].dt.year == year]
+        if len(subset) == 0:
+            continue
+    
+        label = str(year)
+        kmf.fit(subset["duration"], event_observed=subset["event"], label=label)
+    
+        # Color automático por año (Plotly asigna colores si no se especifica)
+        # Añadir la línea principal con legendgroup = year para agrupar con su CI
+        fig_years.add_trace(go.Scatter(
+            x=kmf.survival_function_.index,
+            y=kmf.survival_function_[label],
+            mode="lines",
+            line_shape="hv",
+            name=label,
+            legendgroup=label,
+            line=dict(width=2),
+            hovertemplate="Días: %{x}<br>Survival: %{y:.3f}<extra>" + label + "</extra>"
+        ))
+    
+        # Añadir intervalos de confianza (si el usuario los pidió)
+        if show_ci:
+            ci = kmf.confidence_interval_
+            # Lower bound
+            fig_years.add_trace(go.Scatter(
+                x=ci.index,
+                y=ci.iloc[:, 0],
+                mode="lines",
+                line=dict(width=0),
+                showlegend=False,
+                legendgroup=label,
+                hoverinfo="skip",
+                name=f"{label} CI lower"
+            ))
+            # Upper bound (con fill to previous trace)
+            fig_years.add_trace(go.Scatter(
+                x=ci.index,
+                y=ci.iloc[:, 1],
+                mode="lines",
+                line=dict(width=0),
+                fill="tonexty",
+                fillcolor="rgba(0,0,0,0.12)",  # color neutro; Plotly no aplica color por legendgroup aquí
+                showlegend=False,
+                legendgroup=label,
+                hoverinfo="skip",
+                name=f"{label} CI upper"
+            ))
+    
+    # Forzar orden de leyenda por años seleccionados (si quieres control explícito)
+    if years_to_plot:
+        # Asegurar que la leyenda muestre los años en el orden seleccionado
+        fig_years.update_layout(legend=dict(traceorder="normal"))
+    
     fig_years.update_layout(title=texts[lang]["km_years"], xaxis_title=texts[lang]["x_rl"], yaxis_title=texts[lang]["y_surv"])
     st.plotly_chart(fig_years, use_container_width=True)

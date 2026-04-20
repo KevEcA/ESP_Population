@@ -442,12 +442,12 @@ if uploaded_file:
             else:
                 st.info("No hay datos de falladas para los años seleccionados.")
     
-    # --- 6) Comprobación opcional: mostrar top RL_at_stop para validar el X final ---
-    st.write("Top 10 RL_at_stop (falladas) para validar X final:")
-    if not failed_with_stop.empty:
-        st.dataframe(failed_with_stop.sort_values("RL_at_stop", ascending=False)[["Well_ID","Run_Date","Stop_Date","RL_at_stop"]].head(10))
-    else:
-        st.write("No hay registros con Stop_Date para mostrar.")
+    # # --- 6) Comprobación opcional: mostrar top RL_at_stop para validar el X final ---
+    # st.write("Top 10 RL_at_stop (falladas) para validar X final:")
+    # if not failed_with_stop.empty:
+    #     st.dataframe(failed_with_stop.sort_values("RL_at_stop", ascending=False)[["Well_ID","Run_Date","Stop_Date","RL_at_stop"]].head(10))
+    # else:
+    #     st.write("No hay registros con Stop_Date para mostrar.")
     
     # ---------------------------
     # BLOQUE KAPLAN–MEIER

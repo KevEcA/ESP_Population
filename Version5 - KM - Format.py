@@ -64,7 +64,7 @@ ACAC-058 - 7\t15-Sep-23\t\t0\t
 """
 st.download_button(texts[lang]["download"], sample, file_name="example.txt")
 
-uploaded_file = st.file_uploader(texts[lang]["upload"], type=["txt","csv"])
+uploaded_file = st.file_uploader(texts[lang]["upload"], type=["txt","csv"],key="file_uploader")
 if uploaded_file:
     try:
         df = pd.read_csv(uploaded_file, sep="\t")

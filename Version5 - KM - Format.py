@@ -228,6 +228,43 @@ if uploaded_file:
             fig_box_viva.update_xaxes(categoryorder="array", categoryarray=all_segments)
             st.plotly_chart(fig_box_viva, use_container_width=True)
 
+  # Opción A Corte fijo 2026-12-31
+        from datetime import datetime
+        
+        # Parámetros
+        year_target = 2026
+        cutoff = datetime(year_target, 12, 31)
+        
+        # Bins definidos por el usuario (ejemplo: "0,300,600,900")
+        bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900", key="bins_viva_2026")
+        bins_viva = [int(x) for x in bins_input_viva.split(",")]
+        # Asegurar último bin suficientemente grande
+        max_rl_possible = int((df["Stop_Date"].fillna(datetime.today()) - df["Run_Date"]).dt.days.max())
+        if max_rl_possible > bins_viva[-1]:
+            bins_viva.append(int(max_rl_possible))
+        else:
+            bins_viva.append(bins_viva[-1] + 1)
+        
+        # Filtrar población viva al corte 2026-12-31
+        active_2026 = df[(df["Run_Date"] <= cutoff) & ((df["Stop_Date"].isna()) | (df["Stop_Date"] > cutoff))].copy()
+        active_2026["RL_at_cutoff"] = (cutoff - active_2026["Run_Date"]).dt.days
+        
+        # Asignar segmentos con pd.cut usando los bins definidos
+        active_2026["RL_segment"] = pd.cut(active_2026["RL_at_cutoff"], bins=bins_viva, right=False)
+        
+        # Contar pozos por segmento
+        counts_2026 = active_2026.groupby("RL_segment").size().reset_index(name="Count")
+        # Asegurar orden y mostrar 0 para segmentos vacíos
+        interval_index = pd.IntervalIndex.from_breaks(bins_viva, closed="left")
+        labels = [str(iv) for iv in interval_index]
+        idx = pd.Index(labels, name="RL_segment")
+        counts_2026["RL_segment"] = counts_2026["RL_segment"].astype(str)
+        counts_2026 = counts_2026.set_index("RL_segment").reindex(labels, fill_value=0).reset_index()
+        
+        # Salida para inspección
+        st.write(f"Población viva al {cutoff.date()} (total): {len(active_2026)}")
+        st.dataframe(counts_2026)
+    
     # -----------------------------
     # --- BLOQUE POBLACIÓN FALLADA ---
     # -----------------------------

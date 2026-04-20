@@ -234,78 +234,140 @@ if uploaded_file:
 
 #----------------------------
 
-    # Diagnóstico detallado para población viva 2026
+    # Diagnóstico robusto para población viva 2026
     from datetime import datetime
+    import pandas as pd
     
-    # 1) Parámetros
+    # Parámetros
     year_check = 2026
     cutoff = datetime(year_check, 12, 31)
-    expected_counts = {"0-300":52, "301-600":50, "601-900":44}  # usuario dio 3 primeros; último se calcula
     
-    # 2) Validaciones básicas de fechas
-    st.write(">>> Validación de parsing de fechas (primeras 10 filas):")
+    st.markdown("### Diagnóstico población viva 2026")
+    
+    # 1) Validación rápida de parsing de fechas
+    st.write("Primeras 10 filas (Well_ID, Run_Date, Stop_Date):")
     st.dataframe(df[["Well_ID","Run_Date","Stop_Date"]].head(10))
     
-    # Filas con Run_Date o Stop_Date nulos
-    null_run = df[df["Run_Date"].isna()]
-    null_stop = df[df["Stop_Date"].isna()]
-    st.write("Filas con Run_Date nulo:", len(null_run))
-    st.write("Filas con Stop_Date nulo:", len(null_stop))
+    # 2) Filas con fechas nulas
+    st.write("Filas con Run_Date nulo:", int(df["Run_Date"].isna().sum()))
+    st.write("Filas con Stop_Date nulo:", int(df["Stop_Date"].isna().sum()))
     
-    # 3) Calcular RL_at_cutoff para 2026
+    # 3) Filtrar activos al cutoff y calcular RL_at_cutoff
     active_2026 = df[(df["Run_Date"] <= cutoff) & ((df["Stop_Date"].isna()) | (df["Stop_Date"] > cutoff))].copy()
     active_2026["RL_at_cutoff"] = (cutoff - active_2026["Run_Date"]).dt.days
     
     st.write(f"Total activos al {cutoff.date()}:", len(active_2026))
-    st.write("RL_at_cutoff min, median, max:", active_2026["RL_at_cutoff"].min(), active_2026["RL_at_cutoff"].median(), active_2026["RL_at_cutoff"].max())
+    st.write("RL_at_cutoff min, median, max:", 
+             int(active_2026["RL_at_cutoff"].min()) if not active_2026["RL_at_cutoff"].isna().all() else None,
+             int(active_2026["RL_at_cutoff"].median()) if not active_2026["RL_at_cutoff"].isna().all() else None,
+             int(active_2026["RL_at_cutoff"].max()) if not active_2026["RL_at_cutoff"].isna().all() else None)
     
-    # 4) Construir bins con la convención solicitada y último bin 910-max_rl_cutoff
-    max_rl_cutoff = int(active_2026["RL_at_cutoff"].max(skipna=True))
-    edges = [0, 300, 600, 900, max_rl_cutoff]
-    labels = ["0-300", "301-600", "601-900", f"910-{max_rl_cutoff}"]
+    # 4) Construir edges esperados y labels según convención solicitada
+    # Usuario ingresó bins en UI; si no, usamos default
+    bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900", key="diag_bins_viva")
+    try:
+        user_bins_viva = [int(float(x.strip())) for x in bins_input_viva.split(",") if x.strip() != ""]
+    except Exception:
+        user_bins_viva = [0,300,600,900]
+    if len(user_bins_viva) < 4:
+        # rellenar con defaults si el usuario dio menos
+        user_bins_viva = [0,300,600,900]
     
-    st.write("Edges usados:", edges)
-    st.write("Labels usados:", labels)
+    # máximo RL relativo al cutoff (importante)
+    max_rl_cutoff = int(active_2026["RL_at_cutoff"].max(skipna=True)) if not active_2026["RL_at_cutoff"].isna().all() else user_bins_viva[-1] + 1
     
-    # 5) Crear IntervalIndex y map exacto Interval->label
-    interval_index = pd.IntervalIndex.from_breaks(edges, closed="both")
-    label_map = {interval_index[i]: labels[i] for i in range(len(interval_index))}
-    st.write("IntervalIndex:", interval_index)
+    # raw edges y labels
+    raw_edges = [user_bins_viva[0], user_bins_viva[1], user_bins_viva[2], user_bins_viva[3], max_rl_cutoff]
     
-    # 6) Asignar bins usando pd.cut y map
-    intervals = pd.cut(active_2026["RL_at_cutoff"], bins=interval_index)
+    # 5) Limpieza y garantía de edges estrictamente crecientes
+    edges_viva = sorted(list(dict.fromkeys([int(e) for e in raw_edges])))
+    # asegurar al menos 2 breaks
+    if len(edges_viva) < 2:
+        edges_viva = [0, max(user_bins_viva[-1], max_rl_cutoff, 1)]
+    # asegurar último > anterior
+    if edges_viva[-1] <= edges_viva[-2]:
+        edges_viva[-1] = edges_viva[-2] + 1
+    
+    st.write("Edges finales usados para bins (viva):", edges_viva)
+    
+    # construir labels visibles (última etiqueta como 910-X según tu pedido)
+    labels_viva = [
+        f"{user_bins_viva[0]}-{user_bins_viva[1]}",
+        f"{user_bins_viva[1]+1}-{user_bins_viva[2]}",
+        f"{user_bins_viva[2]+1}-{user_bins_viva[3]}",
+        f"910-{edges_viva[-1]}"
+    ]
+    st.write("Labels previstos:", labels_viva)
+    
+    # 6) Crear IntervalIndex con manejo de errores por solapamiento
+    try:
+        interval_index = pd.IntervalIndex.from_breaks(edges_viva, closed="right")
+    except Exception as e:
+        st.error("Error creando IntervalIndex; ajustando edges automáticamente.")
+        # forzar incremento mínimo donde haga falta
+        edges_viva = list(edges_viva)
+        for i in range(1, len(edges_viva)):
+            if edges_viva[i] <= edges_viva[i-1]:
+                edges_viva[i] = edges_viva[i-1] + 1
+        st.write("Edges ajustados:", edges_viva)
+        interval_index = pd.IntervalIndex.from_breaks(edges_viva, closed="right")
+    
+    st.write("IntervalIndex resultante:", interval_index)
+    
+    # 7) Map Interval -> label (defensivo: reconstruir labels si no coinciden)
+    n_intervals = len(interval_index)
+    if n_intervals != len(labels_viva):
+        st.write("Número de intervalos y labels no coincide; reconstruyendo labels desde edges.")
+        labels_viva = []
+        for i in range(n_intervals):
+            left = int(interval_index[i].left)
+            right = int(interval_index[i].right)
+            if i < n_intervals - 1:
+                labels_viva.append(f"{left}-{right}")
+            else:
+                labels_viva.append(f"910-{right}")
+        st.write("Labels reconstruidos:", labels_viva)
+    
+    label_map = {interval_index[i]: labels_viva[i] for i in range(len(interval_index))}
+    
+    # 8) Asignar bins con pd.cut y mapear a labels
+    try:
+        intervals = pd.cut(active_2026["RL_at_cutoff"], bins=interval_index, right=True, include_lowest=True)
+    except Exception as e:
+        st.error(f"Error en pd.cut: {e}")
+        # fallback: usar numeric bins con pd.cut sobre edges_viva
+        intervals = pd.cut(active_2026["RL_at_cutoff"], bins=edges_viva, right=True, include_lowest=True)
+    
     active_2026["RL_segment_interval"] = intervals
     active_2026["RL_segment"] = intervals.map(label_map)
     
-    # 7) Conteos por bin y comparación con esperado
-    counts = active_2026.groupby("RL_segment").size().reindex(labels, fill_value=0).reset_index(name="Count")
+    # 9) Conteos por bin y verificación
+    counts = active_2026.groupby("RL_segment").size().reindex(labels_viva, fill_value=0).reset_index(name="Count")
     st.write("Conteos por bin calculados (2026):")
     st.dataframe(counts)
     
-    # Comparación con tus valores esperados (si falta el último, lo calculamos)
-    last_count = counts.loc[counts["RL_segment"].str.startswith("910"), "Count"].iloc[0]
-    st.write("Suma conteos:", counts["Count"].sum(), "Total activos:", len(active_2026))
-    st.write("Conteo último bin (910-X):", int(last_count))
+    st.write("Suma conteos:", int(counts["Count"].sum()), "Total activos:", len(active_2026))
     
-    # 8) Mostrar filas sin bin asignado (si las hay)
+    # 10) Filas sin bin asignado (si existen)
     sin_bin = active_2026[active_2026["RL_segment"].isna()]
-    st.write("Filas sin bin asignado (deben ser 0 si edges cubren todo):", len(sin_bin))
+    st.write("Filas sin bin asignado (debería ser 0):", len(sin_bin))
     if not sin_bin.empty:
+        st.write("Primeras filas sin bin asignado:")
         st.dataframe(sin_bin[["Well_ID","Run_Date","Stop_Date","RL_at_cutoff","RL_segment_interval"]].head(50))
     
-    # 9) Mostrar ejemplos de cada bin (primeras 10 filas por bin) para validar límites
-    for lab in labels:
+    # 11) Ejemplos por bin (primeras y últimas filas) para validar límites
+    for lab in labels_viva:
         subset = active_2026[active_2026["RL_segment"] == lab]
         st.write(f"Ejemplos para bin {lab} (n={len(subset)}):")
         if not subset.empty:
             st.dataframe(subset[["Well_ID","Run_Date","RL_at_cutoff"]].sort_values("RL_at_cutoff").head(10))
+            st.dataframe(subset[["Well_ID","Run_Date","RL_at_cutoff"]].sort_values("RL_at_cutoff").tail(10))
         else:
             st.write("  (vacío)")
     
-    # 10) Comprobaciones adicionales: duplicados y valores extremos
-    st.write("Duplicados en Well_ID dentro de activos 2026:", active_2026["Well_ID"].duplicated().sum())
-    st.write("Valores RL_at_cutoff fuera de rango negativo o muy grandes (mostrar > max_rl_cutoff):")
-    st.dataframe(active_2026[active_2026["RL_at_cutoff"] > max_rl_cutoff].head(20))
+    # 12) Comprobaciones adicionales
+    st.write("Duplicados en Well_ID dentro de activos 2026:", int(active_2026["Well_ID"].duplicated().sum()))
+    st.write("Filas con RL_at_cutoff negativo (si hay):", int((active_2026["RL_at_cutoff"] < 0).sum()))
 
 #-----------------------------
 

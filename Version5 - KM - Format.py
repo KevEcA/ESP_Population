@@ -282,7 +282,7 @@ if uploaded_file:
             st.plotly_chart(fig_box_viva, use_container_width=True)
     
     # Validación rápida (muestra totales)
-    st.write("Total activos (suma por años en final_viva):", int(final_viva["Count"].sum()))
+    # st.write("Total activos (suma por años en final_viva):", int(final_viva["Count"].sum()))
 
 
     

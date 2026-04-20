@@ -285,84 +285,148 @@ if uploaded_file:
 
 
     
-    # ---------------------------
-    # BLOQUE POBLACIÓN FALLADA
-    # ---------------------------
+ # ---------------------------
+# BLOQUE POBLACIÓN FALLADA (REEMPLAZO)
+# ---------------------------
 
-    st.subheader(texts[lang]["fail_header"])
+# Este bloque asume que `interval_index_global` y `label_map_global` ya existen (definidos en población viva).
+# Si no existen, se construyen de forma consistente con la convención global (último bin >=901).
+import calendar
+from datetime import datetime
 
-    bar_mode_fail = st.radio(
-        "Modo de visualización (población fallada):",
-        options=["stack", "group"],
-        index=1,
-        format_func=lambda x: "Apilado" if x == "stack" else "Lado a lado"
-    )
+st.subheader(texts[lang]["fail_header"])
 
-    bins_input_fail = st.text_input(texts[lang]["bins_fail"], "0,300,600,900", key="bins_fail_main")
-    user_bins_fail = ensure_int_list_from_input(bins_input_fail)
-    if not user_bins_fail:
-        user_bins_fail = [0, 300, 600, 900]
+bar_mode_fail = st.radio(
+    "Modo de visualización (población fallada):",
+    options=["stack", "group"],
+    index=1,
+    format_func=lambda x: "Apilado" if x == "stack" else "Lado a lado"
+)
 
-    if years:
-        max_selected_year = max(int(y) for y in years)
+# Leer bins de usuario (fallback a defaults)
+bins_input_fail = st.text_input(texts[lang]["bins_fail"], "0,300,600,900", key="bins_fail_main")
+user_bins_fail = ensure_int_list_from_input(bins_input_fail)
+if not user_bins_fail:
+    user_bins_fail = [0, 300, 600, 900]
+
+# Si no existe interval_index_global (creado en población viva), construir uno global consistente
+try:
+    _ = interval_index_global  # noqa: F821
+    _ = label_map_global      # noqa: F821
+except Exception:
+    # construir interval_index_global y label_map_global igual que en población viva
+    last_run = df["Run_Date"].max()
+    if pd.isna(last_run):
+        global_cutoff = datetime(int(df["Run_Date"].dt.year.max()), 12, 31)
     else:
-        max_selected_year = max_year
-    cutoff_for_max_fail = datetime(max_selected_year, 12, 31)
-    rl_at_cutoff_series_fail = (cutoff_for_max_fail - df["Run_Date"]).dt.days
-    max_rl_cutoff_fail = int(rl_at_cutoff_series_fail.max(skipna=True)) if not rl_at_cutoff_series_fail.isna().all() else user_bins_fail[-1] + 1
+        global_cutoff = datetime(last_run.year, last_run.month, calendar.monthrange(last_run.year, last_run.month)[1])
 
-    edges_fail, labels_fail = build_edges_and_labels(user_bins_fail, max_rl_cutoff_fail)
-    interval_index_fail = pd.IntervalIndex.from_breaks(edges_fail, closed="left")
-    label_map_fail = {interval_index_fail[i]: labels_fail[i] for i in range(len(interval_index_fail))}
+    rl_at_global = (global_cutoff - df["Run_Date"]).dt.days
+    global_max_rl = int(rl_at_global.max(skipna=True)) if not rl_at_global.isna().all() else user_bins_fail[-1] + 1
 
-    results_fail = []
-    fail_all = []
-    for year in years:
-        failed = df[
-            (df["Stop_Date"].dt.year == int(year)) &
-            ((df["State"] == 1) | (df["Cause"] == "Tbg/Csg")) &
-            (df["Cause"] != "Manual off")
-        ].copy()
+    raw_edges = [user_bins_fail[0], user_bins_fail[1], user_bins_fail[2], user_bins_fail[3], global_max_rl]
+    edges_global = sorted(list(dict.fromkeys([int(e) for e in raw_edges])))
 
-        if failed.empty:
-            failed = pd.DataFrame(columns=df.columns.tolist())
+    # Forzar penúltimo >= 900 y último >= 901
+    if len(edges_global) >= 2:
+        if edges_global[-2] < 900:
+            edges_global[-2] = 900
+        if edges_global[-1] < 901:
+            edges_global[-1] = max(901, edges_global[-2] + 1)
+    if edges_global[-1] <= edges_global[-2]:
+        edges_global[-1] = edges_global[-2] + 1
 
-        failed["RL_at_year"] = (failed["Stop_Date"] - failed["Run_Date"]).dt.days
-        intervals_f = pd.cut(failed["RL_at_year"], bins=interval_index_fail, right=False)
-        failed["RL_segment"] = intervals_f.map(label_map_fail)
-        failed["Year"] = str(year)
+    try:
+        interval_index_global = pd.IntervalIndex.from_breaks(edges_global, closed="right")
+    except Exception:
+        edges_global = list(edges_global)
+        for i in range(1, len(edges_global)):
+            if edges_global[i] <= edges_global[i-1]:
+                edges_global[i] = edges_global[i-1] + 1
+        interval_index_global = pd.IntervalIndex.from_breaks(edges_global, closed="right")
 
-        counts = failed.groupby(["RL_segment", "Year"]).size().reset_index(name="Count")
-        results_fail.append(counts)
-        fail_all.append(failed)
+    labels_global = [
+        f"{edges_global[0]}-{edges_global[1]}",
+        f"{edges_global[1]+1}-{edges_global[2]}",
+        f"{edges_global[2]+1}-{edges_global[3]}",
+        ">=901"
+    ]
+    # Asegurar match entre intervals y labels
+    if len(interval_index_global) != len(labels_global):
+        labels_global = []
+        for i in range(len(interval_index_global)):
+            left = int(interval_index_global[i].left)
+            right = int(interval_index_global[i].right)
+            if i < len(interval_index_global) - 1:
+                labels_global.append(f"{left}-{right}")
+            else:
+                labels_global.append(">=901")
+    label_map_global = {interval_index_global[i]: labels_global[i] for i in range(len(interval_index_global))}
 
-    if results_fail:
-        all_counts_fail = pd.concat(results_fail, ignore_index=True)
-        all_counts_fail["RL_segment"] = all_counts_fail["RL_segment"].astype(object).where(all_counts_fail["RL_segment"].notna(), None)
+# --- Procesamiento por año (falladas/censuradas) ---
+results_fail = []
+fail_all = []
 
-        all_segments_fail = labels_fail
-        all_years_fail = [str(y) for y in years]
-        idx_fail = pd.MultiIndex.from_product([all_segments_fail, all_years_fail], names=["RL_segment", "Year"])
-        final_fail = all_counts_fail.set_index(["RL_segment", "Year"]).reindex(idx_fail, fill_value=0).reset_index()
+for year in years:
+    year = int(year)
 
-        final_fail["RL_segment"] = pd.Categorical(final_fail["RL_segment"], categories=all_segments_fail, ordered=True)
-        final_fail["Year"] = pd.Categorical(final_fail["Year"], categories=all_years_fail, ordered=True)
+    # Filtrar eventos de parada ocurridos en el año
+    # Nota: usamos Stop_Date.dt.year == year; Stop_Date puede ser NaT -> esos no se consideran falladas en ese año
+    failed = df[
+        (df["Stop_Date"].dt.year == year) &
+        ((df["State"] == 1) | (df["Cause"] == "Tbg/Csg")) &
+        (df["Cause"] != "Manual off")
+    ].copy()
 
-        fail_final = pd.concat(fail_all, ignore_index=True)
+    if failed.empty:
+        # mantener estructura vacía con columnas esperadas
+        failed = pd.DataFrame(columns=df.columns.tolist())
+
+    # Calcular RL al evento (Stop_Date - Run_Date)
+    failed["RL_at_year"] = (failed["Stop_Date"] - failed["Run_Date"]).dt.days
+
+    # Asignar bins usando el interval_index_global (mismo para todos los años)
+    # Usamos right=True e include_lowest=True para la convención (300 incluido en primer bin, 901 en último)
+    intervals_f = pd.cut(failed["RL_at_year"], bins=interval_index_global, right=True, include_lowest=True)
+    failed["RL_segment"] = intervals_f.map(label_map_global)
+    failed["Year"] = str(year)
+
+    counts = failed.groupby(["RL_segment", "Year"]).size().reset_index(name="Count")
+    results_fail.append(counts)
+    fail_all.append(failed)
+
+# Consolidar resultados (igual que en población viva)
+if results_fail:
+    all_counts_fail = pd.concat(results_fail, ignore_index=True)
+    all_counts_fail["RL_segment"] = all_counts_fail["RL_segment"].astype(object).where(all_counts_fail["RL_segment"].notna(), None)
+
+    all_segments_fail = labels_global
+    all_years_fail = [str(y) for y in years]
+    idx_fail = pd.MultiIndex.from_product([all_segments_fail, all_years_fail], names=["RL_segment", "Year"])
+    final_fail = all_counts_fail.set_index(["RL_segment", "Year"]).reindex(idx_fail, fill_value=0).reset_index()
+
+    final_fail["RL_segment"] = pd.Categorical(final_fail["RL_segment"], categories=all_segments_fail, ordered=True)
+    final_fail["Year"] = pd.Categorical(final_fail["Year"], categories=all_years_fail, ordered=True)
+
+    fail_final = pd.concat(fail_all, ignore_index=True)
+    if not fail_final.empty:
+        fail_final["RL_segment_interval"] = pd.cut(fail_final["RL_at_year"], bins=interval_index_global, right=True, include_lowest=True)
+        fail_final["RL_segment"] = fail_final["RL_segment_interval"].map(label_map_global)
+        fail_final["RL_segment"] = pd.Categorical(fail_final["RL_segment"], categories=all_segments_fail, ordered=True)
+        fail_final["Year"] = fail_final["Year"].astype(str)
+
+    col3, col4 = st.columns(2)
+    with col3:
+        fig_bar_fail = px.bar(final_fail, x="RL_segment", y="Count", color="Year", barmode=bar_mode_fail)
+        st.plotly_chart(fig_bar_fail, use_container_width=True)
+    with col4:
+        # Si fail_final está vacío, px.box fallará; proteger con condicional
         if not fail_final.empty:
-            fail_final["RL_segment_interval"] = pd.cut(fail_final["RL_at_year"], bins=interval_index_fail, right=False)
-            fail_final["RL_segment"] = fail_final["RL_segment_interval"].map(label_map_fail)
-            fail_final["RL_segment"] = pd.Categorical(fail_final["RL_segment"], categories=all_segments_fail, ordered=True)
-            fail_final["Year"] = fail_final["Year"].astype(str)
-
-        col3, col4 = st.columns(2)
-        with col3:
-            fig_bar_fail = px.bar(final_fail, x="RL_segment", y="Count", color="Year", barmode=bar_mode_fail)
-            st.plotly_chart(fig_bar_fail, use_container_width=True)
-        with col4:
             fig_box_fail = px.box(fail_final, x="RL_segment", y="RL_at_year", color="Year")
             fig_box_fail.update_xaxes(categoryorder="array", categoryarray=all_segments_fail)
             st.plotly_chart(fig_box_fail, use_container_width=True)
+        else:
+            st.info("No hay datos de falladas para los años seleccionados.")
 
     # ---------------------------
     # BLOQUE KAPLAN–MEIER

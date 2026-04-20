@@ -53,14 +53,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- Enlace de ayuda debajo del título ---
-st.markdown(
-    '<p style="font-size:12px;">'
-    '<a href="https://keveca.github.io/ESP_Population/tutorial.html" target="_blank" style="color:#007BFF; text-decoration:none;">HELP?</a>'
-    '</p>',
-    unsafe_allow_html=True
-)
-
 # --- Ejemplo descargable ---
 sample = """Well_ID\tRun_Date\tStop_Date\tState\tCause
 ACA-025 - 12\t15-Sep-23\t\t0\t
@@ -107,107 +99,52 @@ if uploaded_file:
     # --- Selector de años ---
     years = st.multiselect(texts[lang]["years"], available_years, default=available_years)
 
-    # --- Funciones auxiliares seguras para normalizar etiquetas ---
-    def normalize_label(s, labels):
-        # Manejo seguro de valores no-string y NaN
-        if pd.isna(s):
-            return labels[0]
-        if not isinstance(s, str):
-            s = str(s)
-
-        # Extraer límite izquierdo de s y compararlo con límites de labels
-        for lab in labels:
+    # --- Funciones auxiliares seguras ---
+    def ensure_int_list_from_input(text_input):
+        parts = [p.strip() for p in text_input.split(",") if p.strip() != ""]
+        nums = []
+        for p in parts:
             try:
-                left_lab = lab.split(",")[0].strip().lstrip("[")
-                left_s = s.split(",")[0].strip().lstrip("[")
-                # Comparar como enteros si es posible, sino como strings
-                try:
-                    if int(float(left_s)) == int(float(left_lab)):
-                        return lab
-                except Exception:
-                    if left_s == left_lab:
-                        return lab
+                nums.append(int(float(p)))
             except Exception:
                 continue
-        return s
+        nums = sorted(list(dict.fromkeys(nums)))
+        return nums
 
-    def normalize_label_fail(s, labels):
-        # misma lógica para fallada
-        return normalize_label(s, labels)
-    # ---------------------------
-    # --- PRUEBAS ---
-    # ---------------------------
+    # --- Construir bins "especiales" según convención solicitada ---
+    # Usuario ingresa: 0,300,600,900
+    # Queremos: 0-300 ; 301-600 ; 601-900 ; >=901
+    def build_edges_and_labels(user_bins, max_rl_cutoff):
+        """
+        user_bins: sorted list of ints like [0,300,600,900]
+        max_rl_cutoff: int (máximo RL que debe cubrir el último bin)
+        Returns: edges (list of floats), labels (list of strings)
+        """
+        if not user_bins:
+            user_bins = [0, 300, 600, 900]
+        user_bins = sorted(user_bins)
+        # Edges: leftmost = user_bins[0] - 0.5 ; internal edges at each upper bound + 0.5 ; final edge = max_rl_cutoff + 0.5
+        left_edge = user_bins[0] - 0.5
+        internal_edges = [b + 0.5 for b in user_bins[1:]]  # e.g., 300.5, 600.5, 900.5
+        final_edge = max(max_rl_cutoff, user_bins[-1]) + 0.5
+        edges = [left_edge] + internal_edges + [final_edge]
+        # Labels: first label "0-300", then "301-600", ..., last ">=901"
+        labels = []
+        for i in range(len(user_bins)):
+            if i == 0:
+                left = user_bins[0]
+                right = user_bins[1] if len(user_bins) > 1 else user_bins[0]
+                labels.append(f"{left}-{right}")
+            elif i < len(user_bins) - 1:
+                left = user_bins[i] + 1
+                right = user_bins[i + 1]
+                labels.append(f"{left}-{right}")
+            else:
+                # último
+                left = user_bins[-1] + 1
+                labels.append(f">={left}")
+        return edges, labels
 
-    from datetime import datetime
-    
-    # 1) Definir cutoff explícito para 2026 (usa 2026-12-31)
-    cutoff = datetime(2026, 12, 31)
-    
-    # 2) Asegurar bins como enteros y construir IntervalIndex
-    bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900", key="debug_bins_viva")
-    bins_viva = [int(x) for x in bins_input_viva.split(",")]
-    # asegurar último bin suficientemente grande
-    max_rl_possible = int((df["Stop_Date"].fillna(datetime.today()) - df["Run_Date"]).dt.days.max())
-    if max_rl_possible > bins_viva[-1]:
-        bins_viva.append(int(max_rl_possible))
-    else:
-        bins_viva.append(bins_viva[-1] + 1)
-    interval_index_viva = pd.IntervalIndex.from_breaks(bins_viva, closed="left")
-    labels_viva = [str(iv) for iv in interval_index_viva]
-    
-    # 3) Filtrar población viva al cutoff 2026-12-31
-    active_2026 = df[(df["Run_Date"] <= cutoff) & ((df["Stop_Date"].isna()) | (df["Stop_Date"] > cutoff))].copy()
-    active_2026["RL_at_cutoff"] = (cutoff - active_2026["Run_Date"]).dt.days
-    active_2026["RL_segment_raw"] = pd.cut(active_2026["RL_at_cutoff"], bins=bins_viva, right=False)
-    
-    # 4) Mostrar totales y primeros registros para inspección
-    st.write("Total pozos activos al", cutoff.date(), ":", len(active_2026))
-    st.dataframe(active_2026[["Well_ID","Run_Date","Stop_Date","RL_at_cutoff","RL_segment_raw"]].head(30))
-    
-    # 5) Contar por segmento (forma robusta)
-    active_2026["RL_segment"] = active_2026["RL_segment_raw"].astype(str)
-    counts_2026 = active_2026.groupby("RL_segment").size().reset_index(name="Count")
-    # normalizar índice para mostrar todos los bins en orden
-    counts_2026 = counts_2026.set_index("RL_segment").reindex(labels_viva, fill_value=0).reset_index()
-    st.write("Conteo por bin (2026):")
-    st.dataframe(counts_2026)
-    
-    # 6) Buscar filas sospechosas: RL_at_cutoff fuera del rango del bin asignado
-    def interval_bounds_from_str(s):
-        try:
-            left = float(s.split(",")[0].strip().lstrip("[("))
-            right = float(s.split(",")[1].strip().rstrip("])"))
-            return left, right
-        except Exception:
-            return None, None
-    
-    sospechosas = []
-    for _, row in active_2026.iterrows():
-        seg = str(row["RL_segment_raw"])
-        if pd.isna(seg):
-            sospechosas.append(row)
-            continue
-        left, right = interval_bounds_from_str(seg)
-        if left is None:
-            sospechosas.append(row)
-            continue
-        rl = row["RL_at_cutoff"]
-        # permitir inclusión del límite izquierdo y excluir el derecho (closed='left')
-        if not (rl >= left and rl < right):
-            sospechosas.append(row)
-    
-    if sospechosas:
-        st.write("Filas sospechosas (RL_at_cutoff fuera del bin asignado):")
-        st.dataframe(pd.DataFrame(sospechosas)[["Well_ID","Run_Date","Stop_Date","RL_at_cutoff","RL_segment_raw"]].head(50))
-    else:
-        st.write("No se detectaron filas sospechosas por RL vs bin.")
-
-    # ---------------------------
-    # --- PRUEBAS ---
-    # ---------------------------
-
-
-    
     # ---------------------------
     # --- BLOQUE POBLACIÓN VIVA ---
     # ---------------------------
@@ -223,37 +160,58 @@ if uploaded_file:
         format_func=lambda x: "Apilado" if x == "stack" else "Lado a lado"
     )
 
-    # --- Definir bins población viva ---
-    bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900")
-    bins_viva = [int(x) for x in bins_input_viva.split(",")]
+    # --- Definir bins población viva (entrada del usuario) ---
+    bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900", key="bins_viva_main")
+    user_bins_viva = ensure_int_list_from_input(bins_input_viva)
+    if not user_bins_viva:
+        user_bins_viva = [0, 300, 600, 900]
 
-    # Calcular el máximo RL disponible en la población viva
-    df_viva_temp = df.copy()
-    df_viva_temp["RL_at_year"] = (df_viva_temp["Stop_Date"].fillna(datetime.today()) - df_viva_temp["Run_Date"]).dt.days
-    max_rl_viva = int(df_viva_temp["RL_at_year"].max()) if not df_viva_temp["RL_at_year"].isna().all() else bins_viva[-1] + 1
+    # Calcular el máximo RL que debe cubrir el último bin respecto al año más alto seleccionado
+    # Usamos el año máximo de la selección para garantizar que el último bin cubra RL en el último corte
+    if years:
+        max_selected_year = max(int(y) for y in years)
+    else:
+        max_selected_year = max_year
+    cutoff_for_max = datetime(max_selected_year, 12, 31)
+    rl_at_cutoff_series = (cutoff_for_max - df["Run_Date"]).dt.days
+    max_rl_cutoff = int(rl_at_cutoff_series.max(skipna=True)) if not rl_at_cutoff_series.isna().all() else user_bins_viva[-1] + 1
 
-    # Asegurar que el último bin sea mayor que el anterior
-    if max_rl_viva <= bins_viva[-1]:
-        max_rl_viva = bins_viva[-1] + 1
-
-    # Añadir el máximo como último bin
-    bins_viva.append(int(max_rl_viva))
-
-    # Crear IntervalIndex y etiquetas consistentes (fuente de verdad)
-    interval_index_viva = pd.IntervalIndex.from_breaks(bins_viva, closed="left")
-    labels_viva = [str(iv) for iv in interval_index_viva]
+    # Construir edges y labels con la convención solicitada
+    edges_viva, labels_viva = build_edges_and_labels(user_bins_viva, max_rl_cutoff)
 
     # --- Gráficas población viva ---
     results_viva = []
     viva_all = []
     for year in years:
-        cutoff = datetime(year, 12, 31)
+        cutoff = datetime(int(year), 12, 31)
         active = df[(df["Run_Date"] <= cutoff) & ((df["Stop_Date"].isna()) | (df["Stop_Date"] > cutoff))].copy()
         active["RL_at_year"] = (cutoff - active["Run_Date"]).dt.days
 
-        # Asignar RL_segment usando los mismos bins (evita inconsistencias)
-        intervals = pd.cut(active["RL_at_year"], bins=bins_viva, right=False)
-        active["RL_segment"] = intervals.astype(str)
+        # Asignar RL_segment usando edges_viva (robusto con offsets .5)
+        intervals = pd.cut(active["RL_at_year"], bins=edges_viva, right=False)
+        # Mapear interval a etiqueta legible (labels_viva) comparando límite izquierdo numérico
+        def interval_to_label(iv):
+            if pd.isna(iv):
+                return None
+            try:
+                left = int(iv.left)
+            except Exception:
+                return str(iv)
+            # buscar label cuyo left coincida con left
+            for lab in labels_viva:
+                try:
+                    # extraer left numérico del label
+                    if lab.startswith(">="):
+                        lab_left = int(lab.replace(">=", ""))
+                    else:
+                        lab_left = int(lab.split("-")[0])
+                    if lab_left == left:
+                        return lab
+                except Exception:
+                    continue
+            return str(iv)
+
+        active["RL_segment"] = intervals.apply(interval_to_label)
         active["Year"] = str(year)
 
         # Agrupar por bin y año (una fila por combinación)
@@ -262,36 +220,29 @@ if uploaded_file:
         viva_all.append(active)
 
     if results_viva:
-        # Concatenar y normalizar etiquetas para que coincidan con labels_viva
+        # Concatenar y reindexar para asegurar combinaciones faltantes con Count = 0
         all_counts = pd.concat(results_viva, ignore_index=True)
-        all_counts["RL_segment"] = all_counts["RL_segment"].astype(str)
-        all_counts["RL_segment"] = all_counts["RL_segment"].apply(lambda s: normalize_label(s, labels_viva))
+        # Normalizar RL_segment strings (None -> keep as None)
+        all_counts["RL_segment"] = all_counts["RL_segment"].astype(object).where(all_counts["RL_segment"].notna(), None)
 
-        # Definir orden y años
+        # Reindex con todas las combinaciones
         all_segments = labels_viva
         all_years = [str(y) for y in years]
-
-        # Reindexar para incluir combinaciones faltantes con Count = 0
         idx = pd.MultiIndex.from_product([all_segments, all_years], names=["RL_segment", "Year"])
         final_viva = all_counts.set_index(["RL_segment", "Year"]).reindex(idx, fill_value=0).reset_index()
 
-        # Forzar tipos categóricos y ordenados (clave para orden correcto)
+        # Forzar tipos categóricos y ordenados
         final_viva["RL_segment"] = pd.Categorical(final_viva["RL_segment"], categories=all_segments, ordered=True)
         final_viva["Year"] = pd.Categorical(final_viva["Year"], categories=all_years, ordered=True)
 
-        # Preparar dataframe original para boxplot: usar las mismas etiquetas y tipo categorical
+        # Preparar dataframe original para boxplot: asignar RL_segment con la misma lógica
         viva_final = pd.concat(viva_all, ignore_index=True)
-        viva_final["RL_segment"] = pd.cut(viva_final["RL_at_year"], bins=bins_viva, right=False)
-        viva_final["RL_segment"] = viva_final["RL_segment"].astype(str)
-        viva_final["RL_segment"] = viva_final["RL_segment"].apply(lambda s: normalize_label(s, labels_viva))
+        viva_final["RL_segment_interval"] = pd.cut(viva_final["RL_at_year"], bins=edges_viva, right=False)
+        viva_final["RL_segment"] = viva_final["RL_segment_interval"].apply(interval_to_label)
         viva_final["RL_segment"] = pd.Categorical(viva_final["RL_segment"], categories=all_segments, ordered=True)
         viva_final["Year"] = viva_final["Year"].astype(str)
 
-        # Opcional: debug rápido (descomenta si necesitas inspeccionar)
-        # st.write("Labels esperadas (viva):", labels_viva)
-        # st.write("final_viva RL_segment únicos:", final_viva["RL_segment"].unique())
-        # st.write("viva_final RL_segment únicos:", viva_final["RL_segment"].unique())
-
+        # Mostrar y graficar
         col1, col2 = st.columns(2)
         with col1:
             fig_bar_viva = px.bar(final_viva, x="RL_segment", y="Count", color="Year", barmode=bar_mode_viva)
@@ -300,50 +251,7 @@ if uploaded_file:
             fig_box_viva = px.box(viva_final, x="RL_segment", y="RL_at_year", color="Year")
             fig_box_viva.update_xaxes(categoryorder="array", categoryarray=all_segments)
             st.plotly_chart(fig_box_viva, use_container_width=True)
-    # ---------------------------
-    # --- PRUEBAS ---
-    # ---------------------------
-  # Opción A Corte fijo 2026-12-31
-        from datetime import datetime
-        
-        # Parámetros
-        year_target = 2026
-        cutoff = datetime(year_target, 12, 31)
-        
-        # Bins definidos por el usuario (ejemplo: "0,300,600,900")
-        bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900", key="bins_viva_2026")
-        bins_viva = [int(x) for x in bins_input_viva.split(",")]
-        # Asegurar último bin suficientemente grande
-        max_rl_possible = int((df["Stop_Date"].fillna(datetime.today()) - df["Run_Date"]).dt.days.max())
-        if max_rl_possible > bins_viva[-1]:
-            bins_viva.append(int(max_rl_possible))
-        else:
-            bins_viva.append(bins_viva[-1] + 1)
-        
-        # Filtrar población viva al corte 2026-12-31
-        active_2026 = df[(df["Run_Date"] <= cutoff) & ((df["Stop_Date"].isna()) | (df["Stop_Date"] > cutoff))].copy()
-        active_2026["RL_at_cutoff"] = (cutoff - active_2026["Run_Date"]).dt.days
-        
-        # Asignar segmentos con pd.cut usando los bins definidos
-        active_2026["RL_segment"] = pd.cut(active_2026["RL_at_cutoff"], bins=bins_viva, right=False)
-        
-        # Contar pozos por segmento
-        counts_2026 = active_2026.groupby("RL_segment").size().reset_index(name="Count")
-        # Asegurar orden y mostrar 0 para segmentos vacíos
-        interval_index = pd.IntervalIndex.from_breaks(bins_viva, closed="left")
-        labels = [str(iv) for iv in interval_index]
-        idx = pd.Index(labels, name="RL_segment")
-        counts_2026["RL_segment"] = counts_2026["RL_segment"].astype(str)
-        counts_2026 = counts_2026.set_index("RL_segment").reindex(labels, fill_value=0).reset_index()
-        
-        # Salida para inspección
-        st.write(f"Población viva al {cutoff.date()} (total): {len(active_2026)}")
-        st.dataframe(counts_2026)
 
-   # ---------------------------
-    # --- PRUEBAS ---
-    # ---------------------------
-    
     # -----------------------------
     # --- BLOQUE POBLACIÓN FALLADA ---
     # -----------------------------
@@ -360,34 +268,29 @@ if uploaded_file:
     )
 
     # --- Definir bins población fallada ---
-    bins_input_fail = st.text_input(texts[lang]["bins_fail"], "0,300,600,900")
-    bins_fail = [int(x) for x in bins_input_fail.split(",")]
+    bins_input_fail = st.text_input(texts[lang]["bins_fail"], "0,300,600,900", key="bins_fail_main")
+    user_bins_fail = ensure_int_list_from_input(bins_input_fail)
+    if not user_bins_fail:
+        user_bins_fail = [0, 300, 600, 900]
 
-    # Calcular el máximo RL disponible en la población fallada
-    df_fail_temp = df[df["Stop_Date"].notna()].copy()
-    if not df_fail_temp.empty:
-        df_fail_temp["RL_at_year"] = (df_fail_temp["Stop_Date"] - df_fail_temp["Run_Date"]).dt.days
-        max_rl_fail = int(df_fail_temp["RL_at_year"].max())
+    # Calcular máximo RL respecto al año máximo seleccionado (misma lógica para consistencia)
+    if years:
+        max_selected_year = max(int(y) for y in years)
     else:
-        max_rl_fail = bins_fail[-1] + 1
+        max_selected_year = max_year
+    cutoff_for_max_fail = datetime(max_selected_year, 12, 31)
+    rl_at_cutoff_series_fail = (cutoff_for_max_fail - df["Run_Date"]).dt.days
+    max_rl_cutoff_fail = int(rl_at_cutoff_series_fail.max(skipna=True)) if not rl_at_cutoff_series_fail.isna().all() else user_bins_fail[-1] + 1
 
-    # Asegurar que el último bin sea mayor que el anterior
-    if max_rl_fail <= bins_fail[-1]:
-        max_rl_fail = bins_fail[-1] + 1
-
-    # Añadir el máximo como último bin
-    bins_fail.append(int(max_rl_fail))
-
-    # Crear IntervalIndex y etiquetas consistentes para fallada
-    interval_index_fail = pd.IntervalIndex.from_breaks(bins_fail, closed="left")
-    labels_fail = [str(iv) for iv in interval_index_fail]
+    # Construir edges y labels para fallada
+    edges_fail, labels_fail = build_edges_and_labels(user_bins_fail, max_rl_cutoff_fail)
 
     # --- Gráficas población fallada/censurada ---
     results_fail = []
     fail_all = []
     for year in years:
         failed = df[
-            (df["Stop_Date"].dt.year == year) &
+            (df["Stop_Date"].dt.year == int(year)) &
             ((df["State"] == 1) | (df["Cause"] == "Tbg/Csg")) &
             (df["Cause"] != "Manual off")
         ].copy()
@@ -397,7 +300,29 @@ if uploaded_file:
             failed = pd.DataFrame(columns=df.columns.tolist())
 
         failed["RL_at_year"] = (failed["Stop_Date"] - failed["Run_Date"]).dt.days
-        failed["RL_segment"] = pd.cut(failed["RL_at_year"], bins=bins_fail, right=False).astype(str)
+
+        # Asignar RL_segment usando edges_fail
+        intervals_f = pd.cut(failed["RL_at_year"], bins=edges_fail, right=False)
+        def interval_to_label_fail(iv):
+            if pd.isna(iv):
+                return None
+            try:
+                left = int(iv.left)
+            except Exception:
+                return str(iv)
+            for lab in labels_fail:
+                try:
+                    if lab.startswith(">="):
+                        lab_left = int(lab.replace(">=", ""))
+                    else:
+                        lab_left = int(lab.split("-")[0])
+                    if lab_left == left:
+                        return lab
+                except Exception:
+                    continue
+            return str(iv)
+
+        failed["RL_segment"] = intervals_f.apply(interval_to_label_fail)
         failed["Year"] = str(year)
 
         counts = failed.groupby(["RL_segment", "Year"]).size().reset_index(name="Count")
@@ -406,12 +331,10 @@ if uploaded_file:
 
     if results_fail:
         all_counts_fail = pd.concat(results_fail, ignore_index=True)
-        all_counts_fail["RL_segment"] = all_counts_fail["RL_segment"].astype(str)
-        all_counts_fail["RL_segment"] = all_counts_fail["RL_segment"].apply(lambda s: normalize_label_fail(s, labels_fail))
+        all_counts_fail["RL_segment"] = all_counts_fail["RL_segment"].astype(object).where(all_counts_fail["RL_segment"].notna(), None)
 
         all_segments_fail = labels_fail
         all_years_fail = [str(y) for y in years]
-
         idx_fail = pd.MultiIndex.from_product([all_segments_fail, all_years_fail], names=["RL_segment", "Year"])
         final_fail = all_counts_fail.set_index(["RL_segment", "Year"]).reindex(idx_fail, fill_value=0).reset_index()
 
@@ -420,8 +343,8 @@ if uploaded_file:
 
         fail_final = pd.concat(fail_all, ignore_index=True)
         if not fail_final.empty:
-            fail_final["RL_segment"] = pd.cut(fail_final["RL_at_year"], bins=bins_fail, right=False).astype(str)
-            fail_final["RL_segment"] = fail_final["RL_segment"].apply(lambda s: normalize_label_fail(s, labels_fail))
+            fail_final["RL_segment_interval"] = pd.cut(fail_final["RL_at_year"], bins=edges_fail, right=False)
+            fail_final["RL_segment"] = fail_final["RL_segment_interval"].apply(interval_to_label_fail)
             fail_final["RL_segment"] = pd.Categorical(fail_final["RL_segment"], categories=all_segments_fail, ordered=True)
             fail_final["Year"] = fail_final["Year"].astype(str)
 
@@ -437,10 +360,9 @@ if uploaded_file:
     # -----------------------------
     # --- BLOQUE KAPLAN–MEIER ---
     # -----------------------------
-    
+
     st.subheader(texts[lang]["km_header"])
-    
-    # Preparar dataframe para KM
+
     df_km = df.copy()
     df_km["State"] = pd.to_numeric(df_km["State"], errors="coerce").fillna(0).astype(int)
     df_km["duration"] = (df_km["Stop_Date"].fillna(datetime.today()) - df_km["Run_Date"]).dt.days
@@ -449,18 +371,16 @@ if uploaded_file:
         else 0,
         axis=1
     )
-    
-    # Checkbox para mostrar intervalos de confianza
+
     show_ci = st.checkbox(texts[lang]["show_ci"], value=True)
-    
+
     # Filtrar datos según los años seleccionados por el usuario
-    # Si no hay años seleccionados, usar todos los años disponibles
     if years:
-        df_km_filtered = df_km[df_km["Run_Date"].dt.year.isin(years)].copy()
+        df_km_filtered = df_km[df_km["Run_Date"].dt.year.isin([int(y) for y in years])].copy()
     else:
         df_km_filtered = df_km.copy()
-    
-    # --- Curva KM total (sobre los datos filtrados por selección de años) ---
+
+    # Curva KM total (sobre datos filtrados)
     kmf_total = KaplanMeierFitter()
     if len(df_km_filtered) > 0:
         kmf_total.fit(df_km_filtered["duration"], event_observed=df_km_filtered["event"], label="Total")
@@ -473,18 +393,16 @@ if uploaded_file:
             name="Total",
             line=dict(width=2, color="black")
         ))
-    
+
         if show_ci:
             ci = kmf_total.confidence_interval_
-            # Añadir banda CI (lower then upper) con fill
             fig_total.add_trace(go.Scatter(
                 x=ci.index,
                 y=ci.iloc[:, 0],
                 mode="lines",
                 line=dict(width=0),
                 showlegend=False,
-                hoverinfo="skip",
-                name="Total CI lower"
+                hoverinfo="skip"
             ))
             fig_total.add_trace(go.Scatter(
                 x=ci.index,
@@ -494,32 +412,27 @@ if uploaded_file:
                 fill="tonexty",
                 fillcolor="rgba(0,0,0,0.08)",
                 showlegend=False,
-                hoverinfo="skip",
-                name="Total CI upper"
+                hoverinfo="skip"
             ))
-    
+
         fig_total.update_layout(title=texts[lang]["km_total"], xaxis_title=texts[lang]["x_rl"], yaxis_title=texts[lang]["y_surv"])
         st.plotly_chart(fig_total, use_container_width=True)
     else:
         st.info("No hay datos para la curva Kaplan–Meier total con los años seleccionados.")
-    
-    # --- Curvas KM por año de arranque (solo años seleccionados) ---
+
+    # Curvas KM por año (solo años seleccionados)
     fig_years = go.Figure()
     kmf = KaplanMeierFitter()
-    
-    # Asegurar que 'years' sea una lista de enteros (si viene como strings)
     years_to_plot = [int(y) for y in years] if years else []
-    
+
     for year in years_to_plot:
         subset = df_km[df_km["Run_Date"].dt.year == year]
         if len(subset) == 0:
             continue
-    
+
         label = str(year)
         kmf.fit(subset["duration"], event_observed=subset["event"], label=label)
-    
-        # Color automático por año (Plotly asigna colores si no se especifica)
-        # Añadir la línea principal con legendgroup = year para agrupar con su CI
+
         fig_years.add_trace(go.Scatter(
             x=kmf.survival_function_.index,
             y=kmf.survival_function_[label],
@@ -530,11 +443,9 @@ if uploaded_file:
             line=dict(width=2),
             hovertemplate="Días: %{x}<br>Survival: %{y:.3f}<extra>" + label + "</extra>"
         ))
-    
-        # Añadir intervalos de confianza (si el usuario los pidió)
+
         if show_ci:
             ci = kmf.confidence_interval_
-            # Lower bound
             fig_years.add_trace(go.Scatter(
                 x=ci.index,
                 y=ci.iloc[:, 0],
@@ -542,27 +453,22 @@ if uploaded_file:
                 line=dict(width=0),
                 showlegend=False,
                 legendgroup=label,
-                hoverinfo="skip",
-                name=f"{label} CI lower"
+                hoverinfo="skip"
             ))
-            # Upper bound (con fill to previous trace)
             fig_years.add_trace(go.Scatter(
                 x=ci.index,
                 y=ci.iloc[:, 1],
                 mode="lines",
                 line=dict(width=0),
                 fill="tonexty",
-                fillcolor="rgba(0,0,0,0.12)",  # color neutro; Plotly no aplica color por legendgroup aquí
+                fillcolor="rgba(0,0,0,0.12)",
                 showlegend=False,
                 legendgroup=label,
-                hoverinfo="skip",
-                name=f"{label} CI upper"
+                hoverinfo="skip"
             ))
-    
-    # Forzar orden de leyenda por años seleccionados (si quieres control explícito)
+
     if years_to_plot:
-        # Asegurar que la leyenda muestre los años en el orden seleccionado
         fig_years.update_layout(legend=dict(traceorder="normal"))
-    
+
     fig_years.update_layout(title=texts[lang]["km_years"], xaxis_title=texts[lang]["x_rl"], yaxis_title=texts[lang]["y_surv"])
     st.plotly_chart(fig_years, use_container_width=True)

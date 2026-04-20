@@ -481,7 +481,7 @@ if uploaded_file:
         axis=1
     )
 
-    show_ci = st.checkbox(texts[lang]["show_ci"], value=True,ey="show_ci_checkbox")
+    show_ci = st.checkbox(texts[lang]["show_ci"], value=True,key="show_ci_checkbox")
 
     # Filtrar según selección de años
     if years:

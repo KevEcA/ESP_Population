@@ -132,7 +132,7 @@ if uploaded_file:
                 labels.append(f">={left}")
         return edges, labels
 
-      # ---------------------------
+    # ---------------------------
     # BLOQUE POBLACIÓN VIVA
     # ---------------------------
 
@@ -232,6 +232,85 @@ if uploaded_file:
             fig_box_viva.update_xaxes(categoryorder="array", categoryarray=all_segments)
             st.plotly_chart(fig_box_viva, use_container_width=True)
 
+#----------------------------
+
+    # Diagnóstico detallado para población viva 2026
+    from datetime import datetime
+    
+    # 1) Parámetros
+    year_check = 2026
+    cutoff = datetime(year_check, 12, 31)
+    expected_counts = {"0-300":52, "301-600":50, "601-900":44}  # usuario dio 3 primeros; último se calcula
+    
+    # 2) Validaciones básicas de fechas
+    st.write(">>> Validación de parsing de fechas (primeras 10 filas):")
+    st.dataframe(df[["Well_ID","Run_Date","Stop_Date"]].head(10))
+    
+    # Filas con Run_Date o Stop_Date nulos
+    null_run = df[df["Run_Date"].isna()]
+    null_stop = df[df["Stop_Date"].isna()]
+    st.write("Filas con Run_Date nulo:", len(null_run))
+    st.write("Filas con Stop_Date nulo:", len(null_stop))
+    
+    # 3) Calcular RL_at_cutoff para 2026
+    active_2026 = df[(df["Run_Date"] <= cutoff) & ((df["Stop_Date"].isna()) | (df["Stop_Date"] > cutoff))].copy()
+    active_2026["RL_at_cutoff"] = (cutoff - active_2026["Run_Date"]).dt.days
+    
+    st.write(f"Total activos al {cutoff.date()}:", len(active_2026))
+    st.write("RL_at_cutoff min, median, max:", active_2026["RL_at_cutoff"].min(), active_2026["RL_at_cutoff"].median(), active_2026["RL_at_cutoff"].max())
+    
+    # 4) Construir bins con la convención solicitada y último bin 910-max_rl_cutoff
+    max_rl_cutoff = int(active_2026["RL_at_cutoff"].max(skipna=True))
+    edges = [0, 300, 600, 900, max_rl_cutoff]
+    labels = ["0-300", "301-600", "601-900", f"910-{max_rl_cutoff}"]
+    
+    st.write("Edges usados:", edges)
+    st.write("Labels usados:", labels)
+    
+    # 5) Crear IntervalIndex y map exacto Interval->label
+    interval_index = pd.IntervalIndex.from_breaks(edges, closed="both")
+    label_map = {interval_index[i]: labels[i] for i in range(len(interval_index))}
+    st.write("IntervalIndex:", interval_index)
+    
+    # 6) Asignar bins usando pd.cut y map
+    intervals = pd.cut(active_2026["RL_at_cutoff"], bins=interval_index)
+    active_2026["RL_segment_interval"] = intervals
+    active_2026["RL_segment"] = intervals.map(label_map)
+    
+    # 7) Conteos por bin y comparación con esperado
+    counts = active_2026.groupby("RL_segment").size().reindex(labels, fill_value=0).reset_index(name="Count")
+    st.write("Conteos por bin calculados (2026):")
+    st.dataframe(counts)
+    
+    # Comparación con tus valores esperados (si falta el último, lo calculamos)
+    last_count = counts.loc[counts["RL_segment"].str.startswith("910"), "Count"].iloc[0]
+    st.write("Suma conteos:", counts["Count"].sum(), "Total activos:", len(active_2026))
+    st.write("Conteo último bin (910-X):", int(last_count))
+    
+    # 8) Mostrar filas sin bin asignado (si las hay)
+    sin_bin = active_2026[active_2026["RL_segment"].isna()]
+    st.write("Filas sin bin asignado (deben ser 0 si edges cubren todo):", len(sin_bin))
+    if not sin_bin.empty:
+        st.dataframe(sin_bin[["Well_ID","Run_Date","Stop_Date","RL_at_cutoff","RL_segment_interval"]].head(50))
+    
+    # 9) Mostrar ejemplos de cada bin (primeras 10 filas por bin) para validar límites
+    for lab in labels:
+        subset = active_2026[active_2026["RL_segment"] == lab]
+        st.write(f"Ejemplos para bin {lab} (n={len(subset)}):")
+        if not subset.empty:
+            st.dataframe(subset[["Well_ID","Run_Date","RL_at_cutoff"]].sort_values("RL_at_cutoff").head(10))
+        else:
+            st.write("  (vacío)")
+    
+    # 10) Comprobaciones adicionales: duplicados y valores extremos
+    st.write("Duplicados en Well_ID dentro de activos 2026:", active_2026["Well_ID"].duplicated().sum())
+    st.write("Valores RL_at_cutoff fuera de rango negativo o muy grandes (mostrar > max_rl_cutoff):")
+    st.dataframe(active_2026[active_2026["RL_at_cutoff"] > max_rl_cutoff].head(20))
+
+#-----------------------------
+
+
+    
     # ---------------------------
     # BLOQUE POBLACIÓN FALLADA
     # ---------------------------

@@ -132,7 +132,7 @@ if uploaded_file:
                 labels.append(f">={left}")
         return edges, labels
 
-    # ---------------------------
+      # ---------------------------
     # BLOQUE POBLACIÓN VIVA
     # ---------------------------
 
@@ -159,12 +159,32 @@ if uploaded_file:
     rl_at_cutoff_series = (cutoff_for_max - df["Run_Date"]).dt.days
     max_rl_cutoff = int(rl_at_cutoff_series.max(skipna=True)) if not rl_at_cutoff_series.isna().all() else user_bins_viva[-1] + 1
 
-    # Construir edges y labels
-    edges_viva, labels_viva = build_edges_and_labels(user_bins_viva, max_rl_cutoff)
+    # Construir edges y labels (conteo: >=901; etiqueta final: "910-X" según tu pedido)
+    # Usamos edges exactos y pd.cut con right=True + include_lowest=True para la convención:
+    #  - 0-300 incluye 300
+    #  - 301-600 incluye 301
+    #  - 601-900 incluye 601..900
+    #  - último bin incluye >=901 (conteo correcto) pero lo etiquetamos como "910-X"
+    edges_viva = [user_bins_viva[0], user_bins_viva[1], user_bins_viva[2], user_bins_viva[3], max_rl_cutoff]
+    # Etiquetas visibles (última etiqueta mostrará 910-max_rl_cutoff)
+    labels_viva = [
+        f"{user_bins_viva[0]}-{user_bins_viva[1]}",
+        f"{user_bins_viva[1]+1}-{user_bins_viva[2]}",
+        f"{user_bins_viva[2]+1}-{user_bins_viva[3]}",
+        f"910-{max_rl_cutoff}"
+    ]
 
     # Crear IntervalIndex y mapa Interval -> label (fuente de verdad)
-    interval_index_viva = pd.IntervalIndex.from_breaks(edges_viva, closed="left")
-    label_map_viva = {interval_index_viva[i]: labels_viva[i] for i in range(len(interval_index_viva))}
+    # Usamos closed='right' e include_lowest en pd.cut para que 300 vaya al primer bin, 301 al segundo, etc.
+    interval_index_viva = pd.IntervalIndex.from_breaks(edges_viva, closed="right")
+    # Construimos label_map pero asignamos la etiqueta final manualmente al último intervalo
+    label_map_viva = {}
+    for i, iv in enumerate(interval_index_viva):
+        if i < len(labels_viva) - 1:
+            label_map_viva[iv] = labels_viva[i]
+        else:
+            # último intervalo: conteo real es >=901, pero etiqueta solicitada "910-X"
+            label_map_viva[iv] = labels_viva[-1]
 
     # Recolectar datos por año
     results_viva = []
@@ -174,8 +194,8 @@ if uploaded_file:
         active = df[(df["Run_Date"] <= cutoff) & ((df["Stop_Date"].isna()) | (df["Stop_Date"] > cutoff))].copy()
         active["RL_at_year"] = (cutoff - active["Run_Date"]).dt.days
 
-        # pd.cut con IntervalIndex devuelve Interval objects
-        intervals = pd.cut(active["RL_at_year"], bins=interval_index_viva, right=False)
+        # pd.cut con IntervalIndex devuelve Interval objects; usamos include_lowest=True
+        intervals = pd.cut(active["RL_at_year"], bins=interval_index_viva, right=True, include_lowest=True)
         # Mapear Interval -> label usando label_map_viva (exacto)
         active["RL_segment"] = intervals.map(label_map_viva)
         active["Year"] = str(year)
@@ -198,7 +218,7 @@ if uploaded_file:
         final_viva["Year"] = pd.Categorical(final_viva["Year"], categories=all_years, ordered=True)
 
         viva_final = pd.concat(viva_all, ignore_index=True)
-        viva_final["RL_segment_interval"] = pd.cut(viva_final["RL_at_year"], bins=interval_index_viva, right=False)
+        viva_final["RL_segment_interval"] = pd.cut(viva_final["RL_at_year"], bins=interval_index_viva, right=True, include_lowest=True)
         viva_final["RL_segment"] = viva_final["RL_segment_interval"].map(label_map_viva)
         viva_final["RL_segment"] = pd.Categorical(viva_final["RL_segment"], categories=all_segments, ordered=True)
         viva_final["Year"] = viva_final["Year"].astype(str)

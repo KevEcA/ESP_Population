@@ -157,10 +157,11 @@ if uploaded_file:
     st.subheader(texts[lang]["viva_header"])
     
     bar_mode_viva = st.radio(
-        "Modo de visualización (población viva):",
+        texts[lang]["visual_viva"],
         options=["stack", "group"],
         index=1,
-        format_func=lambda x: "Apilado" if x == "stack" else "Lado a lado"
+        format_func=lambda x: texts[lang]["piled"] if x == "stack" else texts[lang]["lado"]
+
     )
     
     # Bins de usuario (mantener tu helper)
@@ -305,10 +306,10 @@ if uploaded_file:
     st.subheader(texts[lang]["fail_header"])
     
     bar_mode_fail = st.radio(
-        "Modo de visualización (población fallada):",
+        texts[lang]["visual_fail"],
         options=["stack", "group"],
         index=1,
-        format_func=lambda x: "Apilado" if x == "stack" else "Lado a lado"
+        format_func=lambda x: texts[lang]["piled"] if x == "stack" else texts[lang]["lado"]
     )
     
     # Leer bins de usuario (fallback a defaults)

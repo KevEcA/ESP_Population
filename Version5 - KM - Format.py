@@ -189,8 +189,8 @@ if uploaded_file:
     # Si el último coincide con el anterior, empujarlo
     if edges_global[-1] <= edges_global[-2]:
         edges_global[-1] = edges_global[-2] + 1
-    
-    st.write("Edges globales usados para bins (viva):", edges_global)
+  #####  -----------------
+    # st.write("Edges globales usados para bins (viva):", edges_global)
     
     # Construir labels globales (última etiqueta representará 901-en adelante)
     labels_global = [
@@ -199,7 +199,7 @@ if uploaded_file:
         f"{edges_global[2]+1}-{edges_global[3]}",
         f"901-{edges_global[-1]}"
     ]
-    st.write("Labels globales:", labels_global)
+    # st.write("Labels globales:", labels_global)
     
     # Crear IntervalIndex global (closed='right' para que 300 vaya al primer bin)
     try:
@@ -211,7 +211,8 @@ if uploaded_file:
             if edges_global[i] <= edges_global[i-1]:
                 edges_global[i] = edges_global[i-1] + 1
         interval_index_global = pd.IntervalIndex.from_breaks(edges_global, closed="right")
-        st.write("Edges ajustados:", edges_global)
+        # st.write("Edges ajustados:", edges_global)
+    ####------------------
     
     # Map Interval -> label (global)
     n_intervals = len(interval_index_global)

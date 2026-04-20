@@ -286,7 +286,7 @@ if uploaded_file:
 
     
     # ---------------------------
-    # BLOQUE POBLACIÓN FALLADA
+    # BLOQUE POBLACIÓN FALLADA (CORREGIDO: último bin calculado desde RL de filas con Stop_Date)
     # ---------------------------
     
     import calendar
@@ -307,17 +307,22 @@ if uploaded_file:
     if not user_bins_fail:
         user_bins_fail = [0, 300, 600, 900]
     
-    # --- Calcular máximo RL entre filas que tienen Stop_Date (solo población fallada) ---
-    # RL_event = (Stop_Date - Run_Date).days para filas con Stop_Date no nulo
+    # --- 1) Calcular máximo RL entre filas que tienen Stop_Date (solo población fallada) ---
     failed_with_stop = df[df["Stop_Date"].notna()].copy()
     if not failed_with_stop.empty:
         failed_with_stop["RL_at_stop"] = (failed_with_stop["Stop_Date"] - failed_with_stop["Run_Date"]).dt.days
+        # Aseguramos que sea entero y no negativo
         max_rl_fail = int(failed_with_stop["RL_at_stop"].max(skipna=True))
+        if max_rl_fail < 0:
+            max_rl_fail = user_bins_fail[-1] + 1
     else:
         # fallback razonable si no hay Stop_Date en todo el dataset
         max_rl_fail = user_bins_fail[-1] + 1
     
-    # Construir raw edges usando el máximo de la población fallada
+    # Mostrar diagnóstico mínimo
+    st.write("Máximo RL entre filas con Stop_Date (max_rl_fail):", int(max_rl_fail))
+    
+    # --- 2) Construir edges usando ese máximo (y forzar último bin inicio en 901) ---
     raw_edges_fail = [user_bins_fail[0], user_bins_fail[1], user_bins_fail[2], user_bins_fail[3], max_rl_fail]
     
     # Normalizar edges: enteros, orden, únicos
@@ -333,18 +338,16 @@ if uploaded_file:
     if edges_fail[-1] <= edges_fail[-2]:
         edges_fail[-1] = edges_fail[-2] + 1
     
-    st.write("Edges usados para población fallada:", edges_fail)
+    st.write("Edges finales usados para población fallada:", edges_fail)
     
-    # Labels: últimos mostrado como ">=901"
+    # --- 3) Construir labels y IntervalIndex (closed='right' para convención) ---
     labels_fail = [
         f"{edges_fail[0]}-{edges_fail[1]}",
         f"{edges_fail[1]+1}-{edges_fail[2]}",
         f"{edges_fail[2]+1}-{edges_fail[3]}",
         ">=901"
     ]
-    st.write("Labels (fallada):", labels_fail)
     
-    # Construir IntervalIndex (closed='right' para convención: 300 incluido en primer bin)
     try:
         interval_index_fail = pd.IntervalIndex.from_breaks(edges_fail, closed="right")
     except Exception:
@@ -371,7 +374,7 @@ if uploaded_file:
     
     label_map_fail = {interval_index_fail[i]: labels_fail[i] for i in range(len(interval_index_fail))}
     
-    # --- Procesamiento por año (falladas/censuradas) ---
+    # --- 4) Procesamiento por año (falladas/censuradas) ---
     results_fail = []
     fail_all = []
     
@@ -400,7 +403,7 @@ if uploaded_file:
         results_fail.append(counts)
         fail_all.append(failed)
     
-    # Consolidar resultados
+    # --- 5) Consolidar resultados y graficar ---
     if results_fail:
         all_counts_fail = pd.concat(results_fail, ignore_index=True)
         all_counts_fail["RL_segment"] = all_counts_fail["RL_segment"].astype(object).where(all_counts_fail["RL_segment"].notna(), None)

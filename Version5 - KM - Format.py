@@ -97,7 +97,12 @@ if uploaded_file:
     available_years = list(range(min_year, max_year + 1))
 
     # Selector de años
-    years = st.multiselect(texts[lang]["years"], available_years, default=available_years,key="years_selector")
+    years = st.multiselect(
+    texts[lang]["years"],
+    available_years,
+    default=available_years,
+    key="years_selector"
+    )
 
     # Utilidades
     def ensure_int_list_from_input(text_input):

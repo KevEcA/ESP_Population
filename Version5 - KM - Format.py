@@ -107,6 +107,34 @@ if uploaded_file:
     # --- Selector de años ---
     years = st.multiselect(texts[lang]["years"], available_years, default=available_years)
 
+    # --- Funciones auxiliares seguras para normalizar etiquetas ---
+    def normalize_label(s, labels):
+        # Manejo seguro de valores no-string y NaN
+        if pd.isna(s):
+            return labels[0]
+        if not isinstance(s, str):
+            s = str(s)
+
+        # Extraer límite izquierdo de s y compararlo con límites de labels
+        for lab in labels:
+            try:
+                left_lab = lab.split(",")[0].strip().lstrip("[")
+                left_s = s.split(",")[0].strip().lstrip("[")
+                # Comparar como enteros si es posible, sino como strings
+                try:
+                    if int(float(left_s)) == int(float(left_lab)):
+                        return lab
+                except Exception:
+                    if left_s == left_lab:
+                        return lab
+            except Exception:
+                continue
+        return s
+
+    def normalize_label_fail(s, labels):
+        # misma lógica para fallada
+        return normalize_label(s, labels)
+
     # ---------------------------
     # --- BLOQUE POBLACIÓN VIVA ---
     # ---------------------------
@@ -164,15 +192,6 @@ if uploaded_file:
         # Concatenar y normalizar etiquetas para que coincidan con labels_viva
         all_counts = pd.concat(results_viva, ignore_index=True)
         all_counts["RL_segment"] = all_counts["RL_segment"].astype(str)
-
-        # Normalizar formatos: mapear cada etiqueta a la etiqueta estándar en labels_viva
-        def normalize_label(s, labels):
-            for lab in labels:
-                # comparar límites iniciales para evitar diferencias .0 vs int
-                if s.startswith(lab.split(",")[0].strip("[")):
-                    return lab
-            return s
-
         all_counts["RL_segment"] = all_counts["RL_segment"].apply(lambda s: normalize_label(s, labels_viva))
 
         # Definir orden y años
@@ -194,6 +213,11 @@ if uploaded_file:
         viva_final["RL_segment"] = viva_final["RL_segment"].apply(lambda s: normalize_label(s, labels_viva))
         viva_final["RL_segment"] = pd.Categorical(viva_final["RL_segment"], categories=all_segments, ordered=True)
         viva_final["Year"] = viva_final["Year"].astype(str)
+
+        # Opcional: debug rápido (descomenta si necesitas inspeccionar)
+        # st.write("Labels esperadas (viva):", labels_viva)
+        # st.write("final_viva RL_segment únicos:", final_viva["RL_segment"].unique())
+        # st.write("viva_final RL_segment únicos:", viva_final["RL_segment"].unique())
 
         col1, col2 = st.columns(2)
         with col1:
@@ -267,14 +291,6 @@ if uploaded_file:
     if results_fail:
         all_counts_fail = pd.concat(results_fail, ignore_index=True)
         all_counts_fail["RL_segment"] = all_counts_fail["RL_segment"].astype(str)
-
-        # Normalizar etiquetas a labels_fail
-        def normalize_label_fail(s, labels):
-            for lab in labels:
-                if s.startswith(lab.split(",")[0].strip("[")):
-                    return lab
-            return s
-
         all_counts_fail["RL_segment"] = all_counts_fail["RL_segment"].apply(lambda s: normalize_label_fail(s, labels_fail))
 
         all_segments_fail = labels_fail

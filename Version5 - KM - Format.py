@@ -481,8 +481,12 @@ if uploaded_file:
         axis=1
     )
 
-    show_ci = st.checkbox(texts[lang]["show_ci"], value=True,key="show_ci_checkbox")
-
+    show_ci = st.checkbox(
+        texts[lang]["show_ci"],
+        value=True,
+        key="show_ci_checkbox"
+    )
+    
     # Filtrar según selección de años
     if years:
         df_km_filtered = df_km[df_km["Run_Date"].dt.year.isin([int(y) for y in years])].copy()

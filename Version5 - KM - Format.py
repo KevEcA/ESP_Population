@@ -23,10 +23,10 @@ texts = {
         "km_years": "Curvas Kaplan–Meier por año de arranque",
         "show_ci": "Mostrar intervalos de confianza",
         "x_rl": "Días de operación (RL)",
-        "y_surv": "Probabilidad de supervivencia"
-        "apilado": "apilado"
-        "lado": "lado a lado"
-        "visual_viva": "Modo de visualización (población viva):"
+        "y_surv": "Probabilidad de supervivencia",
+        "piled": "Apilado",
+        "lado": "Lado a lado",
+        "visual_viva": "Modo de visualización (población viva):",
         "visual_fail": "Modo de visualización (población fallada):"
 
     },
@@ -44,10 +44,10 @@ texts = {
         "km_years": "Kaplan–Meier Curves by start year",
         "show_ci": "Show confidence intervals",
         "x_rl": "Operating days (RL)",
-        "y_surv": "Survival probability"
-        "apilado": "stacked"
-        "lado": "side to side"
-        "visual_viva": "Visualization mode (active population):"
+        "y_surv": "Survival probability",
+        "piled": "stacked",
+        "lado": "side to side",
+        "visual_viva": "Visualization mode (active population):",
         "visual_fail": "Visualization mode (failed population):"
     }
 }

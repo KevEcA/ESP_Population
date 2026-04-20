@@ -435,6 +435,9 @@ if uploaded_file:
             else:
                 st.info("No hay datos de falladas para los años seleccionados.")
 
+    st.write("max_rl_fail (calculado):", max_rl_fail)
+    st.write("Top 20 RL_at_stop (falladas):", failed_with_stop.sort_values("RL_at_stop", ascending=False)[["Well_ID","Run_Date","Stop_Date","RL_at_stop"]].head(20))
+    
     # ---------------------------
     # BLOQUE KAPLAN–MEIER
     # ---------------------------

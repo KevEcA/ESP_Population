@@ -134,7 +134,80 @@ if uploaded_file:
     def normalize_label_fail(s, labels):
         # misma lógica para fallada
         return normalize_label(s, labels)
+    # ---------------------------
+    # --- PRUEBAS ---
+    # ---------------------------
 
+    from datetime import datetime
+    
+    # 1) Definir cutoff explícito para 2026 (usa 2026-12-31)
+    cutoff = datetime(2026, 12, 31)
+    
+    # 2) Asegurar bins como enteros y construir IntervalIndex
+    bins_input_viva = st.text_input(texts[lang]["bins_viva"], "0,300,600,900", key="debug_bins_viva")
+    bins_viva = [int(x) for x in bins_input_viva.split(",")]
+    # asegurar último bin suficientemente grande
+    max_rl_possible = int((df["Stop_Date"].fillna(datetime.today()) - df["Run_Date"]).dt.days.max())
+    if max_rl_possible > bins_viva[-1]:
+        bins_viva.append(int(max_rl_possible))
+    else:
+        bins_viva.append(bins_viva[-1] + 1)
+    interval_index_viva = pd.IntervalIndex.from_breaks(bins_viva, closed="left")
+    labels_viva = [str(iv) for iv in interval_index_viva]
+    
+    # 3) Filtrar población viva al cutoff 2026-12-31
+    active_2026 = df[(df["Run_Date"] <= cutoff) & ((df["Stop_Date"].isna()) | (df["Stop_Date"] > cutoff))].copy()
+    active_2026["RL_at_cutoff"] = (cutoff - active_2026["Run_Date"]).dt.days
+    active_2026["RL_segment_raw"] = pd.cut(active_2026["RL_at_cutoff"], bins=bins_viva, right=False)
+    
+    # 4) Mostrar totales y primeros registros para inspección
+    st.write("Total pozos activos al", cutoff.date(), ":", len(active_2026))
+    st.dataframe(active_2026[["Well_ID","Run_Date","Stop_Date","RL_at_cutoff","RL_segment_raw"]].head(30))
+    
+    # 5) Contar por segmento (forma robusta)
+    active_2026["RL_segment"] = active_2026["RL_segment_raw"].astype(str)
+    counts_2026 = active_2026.groupby("RL_segment").size().reset_index(name="Count")
+    # normalizar índice para mostrar todos los bins en orden
+    counts_2026 = counts_2026.set_index("RL_segment").reindex(labels_viva, fill_value=0).reset_index()
+    st.write("Conteo por bin (2026):")
+    st.dataframe(counts_2026)
+    
+    # 6) Buscar filas sospechosas: RL_at_cutoff fuera del rango del bin asignado
+    def interval_bounds_from_str(s):
+        try:
+            left = float(s.split(",")[0].strip().lstrip("[("))
+            right = float(s.split(",")[1].strip().rstrip("])"))
+            return left, right
+        except Exception:
+            return None, None
+    
+    sospechosas = []
+    for _, row in active_2026.iterrows():
+        seg = str(row["RL_segment_raw"])
+        if pd.isna(seg):
+            sospechosas.append(row)
+            continue
+        left, right = interval_bounds_from_str(seg)
+        if left is None:
+            sospechosas.append(row)
+            continue
+        rl = row["RL_at_cutoff"]
+        # permitir inclusión del límite izquierdo y excluir el derecho (closed='left')
+        if not (rl >= left and rl < right):
+            sospechosas.append(row)
+    
+    if sospechosas:
+        st.write("Filas sospechosas (RL_at_cutoff fuera del bin asignado):")
+        st.dataframe(pd.DataFrame(sospechosas)[["Well_ID","Run_Date","Stop_Date","RL_at_cutoff","RL_segment_raw"]].head(50))
+    else:
+        st.write("No se detectaron filas sospechosas por RL vs bin.")
+
+    # ---------------------------
+    # --- PRUEBAS ---
+    # ---------------------------
+
+
+    
     # ---------------------------
     # --- BLOQUE POBLACIÓN VIVA ---
     # ---------------------------
@@ -227,7 +300,9 @@ if uploaded_file:
             fig_box_viva = px.box(viva_final, x="RL_segment", y="RL_at_year", color="Year")
             fig_box_viva.update_xaxes(categoryorder="array", categoryarray=all_segments)
             st.plotly_chart(fig_box_viva, use_container_width=True)
-
+    # ---------------------------
+    # --- PRUEBAS ---
+    # ---------------------------
   # Opción A Corte fijo 2026-12-31
         from datetime import datetime
         
@@ -264,6 +339,10 @@ if uploaded_file:
         # Salida para inspección
         st.write(f"Población viva al {cutoff.date()} (total): {len(active_2026)}")
         st.dataframe(counts_2026)
+
+   # ---------------------------
+    # --- PRUEBAS ---
+    # ---------------------------
     
     # -----------------------------
     # --- BLOQUE POBLACIÓN FALLADA ---

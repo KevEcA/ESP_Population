@@ -62,7 +62,7 @@ if uploaded_file:
     except Exception:
         df = pd.read_csv(uploaded_file)
 
-    st.write("Columnas detectadas:", df.columns.tolist())
+    # st.write("Columnas detectadas:", df.columns.tolist())
 
     # Conversión robusta de fechas
     for col in ["Run_Date", "Stop_Date"]:

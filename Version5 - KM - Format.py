@@ -160,7 +160,7 @@ if uploaded_file:
         texts[lang]["visual_viva"],
         options=["stack", "group"],
         index=1,
-        key="bar_mode_viva"
+        key="bar_mode_viva",
         format_func=lambda x: texts[lang]["piled"] if x == "stack" else texts[lang]["lado"]
 
     )

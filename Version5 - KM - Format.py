@@ -133,8 +133,18 @@ if uploaded_file:
         return edges, labels
 
     # ---------------------------
-    # BLOQUE POBLACIÓN VIVA
+    # BLOQUE POBLACIÓN VIVA (CORREGIDO: cutoff por año, último año usa último día del mes disponible)
     # ---------------------------
+
+    import calendar
+
+    def last_day_of_month(dt):
+        """Devuelve datetime del último día del mes de dt (mantiene año/mes)."""
+        if pd.isna(dt):
+            return None
+        y, m = dt.year, dt.month
+        last_day = calendar.monthrange(y, m)[1]
+        return datetime(y, m, last_day)
 
     st.subheader(texts[lang]["viva_header"])
 
@@ -150,77 +160,108 @@ if uploaded_file:
     if not user_bins_viva:
         user_bins_viva = [0, 300, 600, 900]
 
-    # Calcular máximo RL respecto al año máximo seleccionado (para asegurar último bin)
-    if years:
-        max_selected_year = max(int(y) for y in years)
-    else:
-        max_selected_year = max_year
-    cutoff_for_max = datetime(max_selected_year, 12, 31)
-    rl_at_cutoff_series = (cutoff_for_max - df["Run_Date"]).dt.days
-    max_rl_cutoff = int(rl_at_cutoff_series.max(skipna=True)) if not rl_at_cutoff_series.isna().all() else user_bins_viva[-1] + 1
+    # Año máximo presente en la data (para aplicar la regla especial)
+    data_max_year = int(df["Run_Date"].dt.year.max())
 
-    # Construir edges y labels (conteo: >=901; etiqueta final: "910-X" según tu pedido)
-    # Usamos edges exactos y pd.cut con right=True + include_lowest=True para la convención:
-    #  - 0-300 incluye 300
-    #  - 301-600 incluye 301
-    #  - 601-900 incluye 601..900
-    #  - último bin incluye >=901 (conteo correcto) pero lo etiquetamos como "910-X"
-    edges_viva = [user_bins_viva[0], user_bins_viva[1], user_bins_viva[2], user_bins_viva[3], max_rl_cutoff]
-    # Etiquetas visibles (última etiqueta mostrará 910-max_rl_cutoff)
-    labels_viva = [
-        f"{user_bins_viva[0]}-{user_bins_viva[1]}",
-        f"{user_bins_viva[1]+1}-{user_bins_viva[2]}",
-        f"{user_bins_viva[2]+1}-{user_bins_viva[3]}",
-        f"910-{max_rl_cutoff}"
-    ]
-
-    # Crear IntervalIndex y mapa Interval -> label (fuente de verdad)
-    # Usamos closed='right' e include_lowest en pd.cut para que 300 vaya al primer bin, 301 al segundo, etc.
-    interval_index_viva = pd.IntervalIndex.from_breaks(edges_viva, closed="right")
-    # Construimos label_map pero asignamos la etiqueta final manualmente al último intervalo
-    label_map_viva = {}
-    for i, iv in enumerate(interval_index_viva):
-        if i < len(labels_viva) - 1:
-            label_map_viva[iv] = labels_viva[i]
-        else:
-            # último intervalo: conteo real es >=901, pero etiqueta solicitada "910-X"
-            label_map_viva[iv] = labels_viva[-1]
-
-    # Recolectar datos por año
     results_viva = []
     viva_all = []
+
     for year in years:
-        cutoff = datetime(int(year), 12, 31)
+        year = int(year)
+
+        # --- Determinar cutoff por año ---
+        if year == data_max_year:
+            # último Run_Date dentro de ese año
+            max_run_in_year = df[df["Run_Date"].dt.year == year]["Run_Date"].max()
+            if pd.isna(max_run_in_year):
+                # fallback a 31-dic si no hay Run_Date en ese año
+                cutoff = datetime(year, 12, 31)
+            else:
+                cutoff = last_day_of_month(max_run_in_year)
+        else:
+            cutoff = datetime(year, 12, 31)
+
+        # Filtrar activos y calcular RL_at_year
         active = df[(df["Run_Date"] <= cutoff) & ((df["Stop_Date"].isna()) | (df["Stop_Date"] > cutoff))].copy()
         active["RL_at_year"] = (cutoff - active["Run_Date"]).dt.days
 
-        # pd.cut con IntervalIndex devuelve Interval objects; usamos include_lowest=True
+        # --- Calcular max RL relativo a este cutoff para construir el último bin ---
+        max_rl_cutoff_year = int(active["RL_at_year"].max(skipna=True)) if not active["RL_at_year"].isna().all() else user_bins_viva[-1] + 1
+
+        # Construir raw edges: [0,300,600,900,max_rl_cutoff_year]
+        raw_edges = [user_bins_viva[0], user_bins_viva[1], user_bins_viva[2], user_bins_viva[3], max_rl_cutoff_year]
+
+        # Limpieza: enteros, orden, eliminar duplicados y asegurar crecimiento estricto
+        edges_viva = sorted(list(dict.fromkeys([int(e) for e in raw_edges])))
+        if len(edges_viva) < 2:
+            edges_viva = [0, max(user_bins_viva[-1], max_rl_cutoff_year, 1)]
+        if edges_viva[-1] <= edges_viva[-2]:
+            edges_viva[-1] = edges_viva[-2] + 1
+
+        # Labels visibles según convención (última etiqueta "910-X" con X = edges_viva[-1])
+        labels_viva = [
+            f"{user_bins_viva[0]}-{user_bins_viva[1]}",
+            f"{user_bins_viva[1]+1}-{user_bins_viva[2]}",
+            f"{user_bins_viva[2]+1}-{user_bins_viva[3]}",
+            f"910-{edges_viva[-1]}"
+        ]
+
+        # Construir IntervalIndex de forma segura (closed='right' para que 300 vaya al primer bin)
+        try:
+            interval_index_viva = pd.IntervalIndex.from_breaks(edges_viva, closed="right")
+        except Exception:
+            # ajuste defensivo: empujar límites mínimos si hay igualdad
+            edges_viva = list(edges_viva)
+            for i in range(1, len(edges_viva)):
+                if edges_viva[i] <= edges_viva[i-1]:
+                    edges_viva[i] = edges_viva[i-1] + 1
+            interval_index_viva = pd.IntervalIndex.from_breaks(edges_viva, closed="right")
+
+        # Asegurar labels coincidentes con número de intervalos
+        n_intervals = len(interval_index_viva)
+        if n_intervals != len(labels_viva):
+            labels_viva = []
+            for i in range(n_intervals):
+                left = int(interval_index_viva[i].left)
+                right = int(interval_index_viva[i].right)
+                if i < n_intervals - 1:
+                    labels_viva.append(f"{left}-{right}")
+                else:
+                    labels_viva.append(f"910-{right}")
+
+        # Map Interval -> label
+        label_map_viva = {interval_index_viva[i]: labels_viva[i] for i in range(len(interval_index_viva))}
+
+        # Asignar intervalos y mapear a etiquetas
         intervals = pd.cut(active["RL_at_year"], bins=interval_index_viva, right=True, include_lowest=True)
-        # Mapear Interval -> label usando label_map_viva (exacto)
         active["RL_segment"] = intervals.map(label_map_viva)
         active["Year"] = str(year)
 
+        # Guardar resultados de este año
         counts = active.groupby(["RL_segment", "Year"]).size().reset_index(name="Count")
         results_viva.append(counts)
         viva_all.append(active)
 
+    # --- Consolidar resultados (igual que antes) ---
     if results_viva:
         all_counts = pd.concat(results_viva, ignore_index=True)
-        # Asegurar que RL_segment sea objeto y mantener None si no asignado
         all_counts["RL_segment"] = all_counts["RL_segment"].astype(object).where(all_counts["RL_segment"].notna(), None)
 
-        all_segments = labels_viva
+        # Usar labels del último año procesado para el orden (si quieres usar un orden global, construye labels_global)
+        # Aquí construimos labels_global a partir del último edges_viva calculado (puedes cambiar a global si prefieres)
+        labels_global = labels_viva  # conserva el orden/etiquetas del último año evaluado
         all_years = [str(y) for y in years]
-        idx = pd.MultiIndex.from_product([all_segments, all_years], names=["RL_segment", "Year"])
+        idx = pd.MultiIndex.from_product([labels_global, all_years], names=["RL_segment", "Year"])
         final_viva = all_counts.set_index(["RL_segment", "Year"]).reindex(idx, fill_value=0).reset_index()
 
-        final_viva["RL_segment"] = pd.Categorical(final_viva["RL_segment"], categories=all_segments, ordered=True)
+        final_viva["RL_segment"] = pd.Categorical(final_viva["RL_segment"], categories=labels_global, ordered=True)
         final_viva["Year"] = pd.Categorical(final_viva["Year"], categories=all_years, ordered=True)
 
         viva_final = pd.concat(viva_all, ignore_index=True)
+        # Para el boxplot usamos el último interval_index_viva calculado (si prefieres usar uno global, calcula interval_index_global arriba)
         viva_final["RL_segment_interval"] = pd.cut(viva_final["RL_at_year"], bins=interval_index_viva, right=True, include_lowest=True)
         viva_final["RL_segment"] = viva_final["RL_segment_interval"].map(label_map_viva)
-        viva_final["RL_segment"] = pd.Categorical(viva_final["RL_segment"], categories=all_segments, ordered=True)
+        viva_final["RL_segment"] = pd.Categorical(viva_final["RL_segment"], categories=labels_global, ordered=True)
         viva_final["Year"] = viva_final["Year"].astype(str)
 
         col1, col2 = st.columns(2)
@@ -229,7 +270,7 @@ if uploaded_file:
             st.plotly_chart(fig_bar_viva, use_container_width=True)
         with col2:
             fig_box_viva = px.box(viva_final, x="RL_segment", y="RL_at_year", color="Year")
-            fig_box_viva.update_xaxes(categoryorder="array", categoryarray=all_segments)
+            fig_box_viva.update_xaxes(categoryorder="array", categoryarray=labels_global)
             st.plotly_chart(fig_box_viva, use_container_width=True)
 
 #----------------------------

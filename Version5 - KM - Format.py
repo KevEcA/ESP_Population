@@ -338,8 +338,10 @@ if uploaded_file:
     # Asegurar crecimiento estricto
     if edges_fail[-1] <= edges_fail[-2]:
         edges_fail[-1] = edges_fail[-2] + 1
-    
-    st.write("Edges finales usados para población fallada:", edges_fail)
+
+
+#-----------------------------    
+    # st.write("Edges finales usados para población fallada:", edges_fail)
     
     # --- 3) Construir labels y IntervalIndex (closed='right' para convención: 300 incluido en primer bin) ---
     # Etiqueta final como "901-X" donde X = edges_fail[-1] (o max_rl_fail si prefieres)
@@ -361,7 +363,7 @@ if uploaded_file:
             if edges_fail[i] <= edges_fail[i-1]:
                 edges_fail[i] = edges_fail[i-1] + 1
         interval_index_fail = pd.IntervalIndex.from_breaks(edges_fail, closed="right")
-        st.write("Edges ajustados (fallada):", edges_fail)
+        # st.write("Edges ajustados (fallada):", edges_fail)
         # reconstruir etiqueta final por si cambió
         last_right = int(edges_fail[-1])
         labels_fail[-1] = f"901-{last_right}"
@@ -377,7 +379,9 @@ if uploaded_file:
                 labels_fail.append(f"{left}-{right}")
             else:
                 labels_fail.append(f"901-{right}")
-    st.write("Labels (fallada) usados:", labels_fail)
+    # st.write("Labels (fallada) usados:", labels_fail)
+
+#-----------------------------
     
     # Map Interval -> label
     label_map_fail = {interval_index_fail[i]: labels_fail[i] for i in range(len(interval_index_fail))}

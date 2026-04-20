@@ -160,6 +160,7 @@ if uploaded_file:
         texts[lang]["visual_viva"],
         options=["stack", "group"],
         index=1,
+        key="bar_mode_viva"
         format_func=lambda x: texts[lang]["piled"] if x == "stack" else texts[lang]["lado"]
 
     )
@@ -309,6 +310,7 @@ if uploaded_file:
         texts[lang]["visual_fail"],
         options=["stack", "group"],
         index=1,
+        key="bar_mode_fail",
         format_func=lambda x: texts[lang]["piled"] if x == "stack" else texts[lang]["lado"]
     )
     

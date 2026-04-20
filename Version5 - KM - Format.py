@@ -286,7 +286,7 @@ if uploaded_file:
 
     
     # ---------------------------
-    # BLOQUE POBLACIÓN FALLADA (CORREGIDO: último bin calculado desde RL de filas con Stop_Date)
+    # BLOQUE POBLACIÓN FALLADA (COMPLETO: último bin etiquetado como 901-X, X = máximo RL entre falladas)
     # ---------------------------
     
     import calendar
@@ -311,7 +311,7 @@ if uploaded_file:
     failed_with_stop = df[df["Stop_Date"].notna()].copy()
     if not failed_with_stop.empty:
         failed_with_stop["RL_at_stop"] = (failed_with_stop["Stop_Date"] - failed_with_stop["Run_Date"]).dt.days
-        # Aseguramos que sea entero y no negativo
+        # Tomar máximo entero no negativo
         max_rl_fail = int(failed_with_stop["RL_at_stop"].max(skipna=True))
         if max_rl_fail < 0:
             max_rl_fail = user_bins_fail[-1] + 1
@@ -319,7 +319,7 @@ if uploaded_file:
         # fallback razonable si no hay Stop_Date en todo el dataset
         max_rl_fail = user_bins_fail[-1] + 1
     
-    # Mostrar diagnóstico mínimo
+    # Diagnóstico mínimo para validar
     st.write("Máximo RL entre filas con Stop_Date (max_rl_fail):", int(max_rl_fail))
     
     # --- 2) Construir edges usando ese máximo (y forzar último bin inicio en 901) ---
@@ -340,14 +340,17 @@ if uploaded_file:
     
     st.write("Edges finales usados para población fallada:", edges_fail)
     
-    # --- 3) Construir labels y IntervalIndex (closed='right' para convención) ---
+    # --- 3) Construir labels y IntervalIndex (closed='right' para convención: 300 incluido en primer bin) ---
+    # Etiqueta final como "901-X" donde X = edges_fail[-1] (o max_rl_fail si prefieres)
+    last_right = int(edges_fail[-1])
     labels_fail = [
         f"{edges_fail[0]}-{edges_fail[1]}",
         f"{edges_fail[1]+1}-{edges_fail[2]}",
         f"{edges_fail[2]+1}-{edges_fail[3]}",
-        ">=901"
+        f"901-{last_right}"
     ]
     
+    # Crear IntervalIndex con manejo de errores por solapamiento
     try:
         interval_index_fail = pd.IntervalIndex.from_breaks(edges_fail, closed="right")
     except Exception:
@@ -358,6 +361,9 @@ if uploaded_file:
                 edges_fail[i] = edges_fail[i-1] + 1
         interval_index_fail = pd.IntervalIndex.from_breaks(edges_fail, closed="right")
         st.write("Edges ajustados (fallada):", edges_fail)
+        # reconstruir etiqueta final por si cambió
+        last_right = int(edges_fail[-1])
+        labels_fail[-1] = f"901-{last_right}"
     
     # Asegurar que labels y intervals coincidan; reconstruir labels si hace falta
     n_intervals_fail = len(interval_index_fail)
@@ -369,9 +375,10 @@ if uploaded_file:
             if i < n_intervals_fail - 1:
                 labels_fail.append(f"{left}-{right}")
             else:
-                labels_fail.append(">=901")
-        st.write("Labels reconstruidos (fallada):", labels_fail)
+                labels_fail.append(f"901-{right}")
+    st.write("Labels (fallada) usados:", labels_fail)
     
+    # Map Interval -> label
     label_map_fail = {interval_index_fail[i]: labels_fail[i] for i in range(len(interval_index_fail))}
     
     # --- 4) Procesamiento por año (falladas/censuradas) ---
@@ -434,9 +441,13 @@ if uploaded_file:
                 st.plotly_chart(fig_box_fail, use_container_width=True)
             else:
                 st.info("No hay datos de falladas para los años seleccionados.")
-
-    st.write("max_rl_fail (calculado):", max_rl_fail)
-    st.write("Top 20 RL_at_stop (falladas):", failed_with_stop.sort_values("RL_at_stop", ascending=False)[["Well_ID","Run_Date","Stop_Date","RL_at_stop"]].head(20))
+    
+    # --- 6) Comprobación opcional: mostrar top RL_at_stop para validar el X final ---
+    st.write("Top 10 RL_at_stop (falladas) para validar X final:")
+    if not failed_with_stop.empty:
+        st.dataframe(failed_with_stop.sort_values("RL_at_stop", ascending=False)[["Well_ID","Run_Date","Stop_Date","RL_at_stop"]].head(10))
+    else:
+        st.write("No hay registros con Stop_Date para mostrar.")
     
     # ---------------------------
     # BLOQUE KAPLAN–MEIER

@@ -321,7 +321,7 @@ if uploaded_file:
         max_rl_fail = user_bins_fail[-1] + 1
     
     # Diagnóstico mínimo para validar
-    st.write("Máximo RL entre filas con Stop_Date (max_rl_fail):", int(max_rl_fail))
+    # st.write("Máximo RL entre filas con Stop_Date (max_rl_fail):", int(max_rl_fail))
     
     # --- 2) Construir edges usando ese máximo (y forzar último bin inicio en 901) ---
     raw_edges_fail = [user_bins_fail[0], user_bins_fail[1], user_bins_fail[2], user_bins_fail[3], max_rl_fail]
